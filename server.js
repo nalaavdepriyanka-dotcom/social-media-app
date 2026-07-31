@@ -397,3 +397,8 @@ app.listen(PORT, () => {
     console.log(`✅ Database: pg_safety_db`);
     console.log('===========================================');
 });
+
+
+app.get('/', (req, res) => {
+    res.send('Welcome to PG Finder API!');
+});
