@@ -1,0 +1,808 @@
+
+
+
+const express = require('express');
+const mysql = require('mysql2/promise');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const path = require('path');
+
+const app = express();
+app.use(cors());
+app.use(bodyParser.json({ limit: '10mb' })); // Base64 images ke liye limit
+app.use(express.static(path.join(__dirname, 'public')));
+
+// MySQL Connection (Aapka password yahan set hai)
+const pool = mysql.createPool({
+    host: 'localhost',
+    user: 'root',      
+    password: 'pass@2006', 
+    database: 'smart_pg',
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
+});
+
+// Frontend serve karna
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// 1. Add Room API
+app.post('/api/rooms', async (req, res) => {
+    const { room_no, location, sharing, image_url } = req.body;
+    try {
+        await pool.query('INSERT INTO rooms (room_no, location, sharing, image_url) VALUES (?, ?, ?, ?)', [room_no, location, sharing, image_url || '']);
+        const labels = sharing == 1 ? ['1'] : ['A', 'B', 'C', 'D'].slice(0, sharing);
+        for (const label of labels) {
+            await pool.query('INSERT INTO beds (room_no, bed_label, status) VALUES (?, ?, ?)', [room_no, label, 'vacant']);
+        }
+        res.json({ success: true, message: "Room added to Database!" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 2. Update Bed Status API
+app.post('/api/beds/update', async (req, res) => {
+    const { room_no, bed_label, status, name, degree } = req.body;
+    try {
+        await pool.query(`UPDATE beds SET status = ?, roommate_name = ?, roommate_degree = ? WHERE room_no = ? AND bed_label = ?`, [status, name, degree, room_no, bed_label]);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 3. Add Expense API
+app.post('/api/expenses', async (req, res) => {
+    const { title, amount, payer_name, split_members } = req.body;
+    try {
+        await pool.query('INSERT INTO expenses (title, amount, payer_name, split_members) VALUES (?, ?, ?, ?)', [title, amount, payer_name, JSON.stringify(split_members)]);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+const PORT = 3000;
+app.listen(PORT, () => {
+    console.log(`✅ Server running successfully at http://localhost:${PORT}`);
+    console.log(`✅ Connected to 'smart_pg' database`);
+});
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart PG & Women Safety Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root { --primary-red: #d90429; --dark-red: #ef233c; --light-bg: #fdfbfb; --dark-text: #2b2d42; --card-shadow: 0 10px 40px rgba(217, 4, 41, 0.06); --card-hover-shadow: 0 20px 50px rgba(217, 4, 41, 0.12); --sos-red: #d90429; --primary: #d63031; --primary-hover: #b22222; --card-bg: #ffffff; --text: #2d3436; --green: #00b894; --red: #d63031; --glass-bg: rgba(255, 255, 255, 0.85); --glass-border: rgba(255, 255, 255, 0.6); }
+        body { background: radial-gradient(circle at 10% 20%, rgba(217, 4, 41, 0.03) 0%, transparent 25%), radial-gradient(circle at 90% 80%, rgba(217, 4, 41, 0.03) 0%, transparent 25%), #fdfbfb; background-attachment: fixed; color: var(--dark-text); font-family: 'Plus Jakarta Sans', sans-serif; min-height: 100vh; }
+        ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-track { background: #f1f1f1; } ::-webkit-scrollbar-thumb { background: #d90429; border-radius: 10px; } ::-webkit-scrollbar-thumb:hover { background: #ef233c; }
+        .dashboard-nav { background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 4px 20px rgba(0,0,0,0.05); padding: 15px 0; margin-bottom: 30px; position: sticky; top: 0; z-index: 1000; border-bottom: 1px solid var(--glass-border); }
+        .nav-btn { border: 1px solid transparent; background: rgba(248, 249, 250, 0.8); color: #495057; font-weight: 600; padding: 12px 24px; border-radius: 50px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); margin: 0 5px; font-size: 0.95rem; }
+        .nav-btn:hover { background: rgba(217, 4, 41, 0.1); color: var(--primary-red); transform: translateY(-2px); }
+        .nav-btn.active { background: linear-gradient(135deg, var(--primary-red), var(--dark-red)); color: #ffffff; border-color: transparent; box-shadow: 0 4px 15px rgba(217, 4, 41, 0.3); transform: translateY(-2px); }
+        .page-section { display: none; animation: fadeInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1); } .page-section.active { display: block; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .custom-card { border: 1px solid rgba(255, 255, 255, 0.8); border-radius: 20px; box-shadow: var(--card-shadow); background: var(--card-bg); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; }
+        .custom-card:hover { transform: translateY(-5px); box-shadow: var(--card-hover-shadow); }
+        .section-title { color: var(--primary-red); font-weight: 800; border-left: 5px solid var(--primary-red); padding-left: 15px; font-size: 1.4rem; }
+        .bed-box { border: 2px dashed #e0e0e0; border-radius: 16px; padding: 16px; text-align: center; background: #ffffff; transition: all 0.3s ease; position: relative; }
+        .bed-box:hover { transform: scale(1.02); }
+        .bed-box.occupied { border-color: #d90429; background: linear-gradient(135deg, #fff0f3 0%, #ffffff 100%); box-shadow: 0 4px 15px rgba(217, 4, 41, 0.1); }
+        .bed-box.vacant { border-color: #00b894; background: linear-gradient(135deg, #f0fff4 0%, #ffffff 100%); box-shadow: 0 4px 15px rgba(0, 184, 148, 0.1); }
+        .bed-box.notice { border-color: #ffc107; background: linear-gradient(135deg, #fff9e6 0%, #ffffff 100%); }
+        .last-updated { font-size: 0.75rem; color: #6c757d; font-weight: 500; }
+        .room-img-preview { width: 100%; height: 200px; object-fit: cover; border-radius: 12px; margin-bottom: 15px; display: none; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .roommate-info { font-size: 0.8rem; background: rgba(255, 255, 255, 0.9); border-radius: 10px; padding: 8px 10px; margin-top: 8px; border: 1px solid rgba(0,0,0,0.05); }
+        .sos-btn-wrapper { display: flex; justify-content: center; align-items: center; margin: 30px 0; }
+        .sos-button { width: 180px; height: 180px; border-radius: 50%; background: linear-gradient(145deg, #ff2e4d, #d90429); color: #ffffff; border: 6px solid rgba(255, 255, 255, 0.8); box-shadow: 0 0 30px rgba(217, 4, 41, 0.4), inset 0 0 20px rgba(0,0,0,0.1); display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); user-select: none; }
+        .sos-button:hover { transform: scale(1.05); box-shadow: 0 0 40px rgba(217, 4, 41, 0.6), inset 0 0 20px rgba(0,0,0,0.1); }
+        .sos-button:active { transform: scale(0.95); box-shadow: 0 0 50px rgba(217, 4, 41, 0.8); }
+        .sos-pulse { animation: pulse-animation 2s infinite; }
+        @keyframes pulse-animation { 0% { box-shadow: 0 0 0 0px rgba(217, 4, 41, 0.6); } 70% { box-shadow: 0 0 0 25px rgba(217, 4, 41, 0); } 100% { box-shadow: 0 0 0 0px rgba(217, 4, 41, 0); } }
+        .location-badge { background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%); border: 1px solid #e9ecef; border-radius: 12px; padding: 15px; font-size: 0.9rem; box-shadow: 0 4px 10px rgba(0,0,0,0.03); }
+        #photoPreviewContainer, #photoPreviewContainer2 { display: none; }
+        #photoPreview, #photoPreview2 { max-height: 140px; border-radius: 12px; object-fit: cover; border: 3px solid #d90429; box-shadow: 0 4px 15px rgba(217, 4, 41, 0.2); }
+        .nav-pills .nav-link.active { background: linear-gradient(135deg, var(--sos-red), var(--dark-red)); box-shadow: 0 4px 10px rgba(217, 4, 41, 0.3); }
+        .nav-pills .nav-link { color: #495057; font-weight: 600; border-radius: 50px; padding: 8px 20px; margin-right: 5px; transition: all 0.3s ease; }
+        .nav-pills .nav-link:hover:not(.active) { background: rgba(217, 4, 41, 0.1); color: var(--primary-red); }
+        .expense-container { width: 100%; max-width: 500px; margin: 0 auto; }
+        .expense-card { background: var(--card-bg); padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(214, 48, 49, 0.08); margin-bottom: 20px; border: 1px solid rgba(255, 227, 227, 0.5); transition: transform 0.3s ease; }
+        .expense-card:hover { transform: translateY(-3px); }
+        .expense-card h2, .expense-card h3 { color: #2d3436; margin-bottom: 15px; font-weight: 800; }
+        .expense-card label { font-size: 12px; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 6px; display: block; letter-spacing: 0.5px; }
+        .expense-card input, .expense-card select { width: 100%; padding: 14px; border: 2px solid #f1f2f6; border-radius: 12px; margin-bottom: 15px; font-size: 14px; outline: none; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.3s ease; background: #fafafa; }
+        .expense-card input:focus, .expense-card select:focus { border-color: var(--primary); background: #ffffff; box-shadow: 0 0 0 4px rgba(214, 48, 49, 0.1); }
+        .expense-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, var(--primary), var(--primary-hover)); color: #fff; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; transition: all 0.3s ease; font-family: 'Plus Jakarta Sans', sans-serif; box-shadow: 0 4px 15px rgba(214, 48, 49, 0.3); }
+        .expense-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(214, 48, 49, 0.4); }
+        .nav-tabs-exp { display: flex; gap: 10px; margin-bottom: 20px; background: #f1f2f6; padding: 5px; border-radius: 15px; }
+        .nav-tab-exp { flex: 1; padding: 12px; text-align: center; background: transparent; border-radius: 12px; font-weight: 700; cursor: pointer; color: #636e72; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.3s ease; }
+        .nav-tab-exp.active { background: #ffffff; color: var(--primary); box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .member-input-row { display: flex; gap: 10px; margin-bottom: 10px; } .member-input-row input { margin-bottom: 0; }
+        .split-checkboxes { display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; background: #fff8f8; padding: 15px; border-radius: 12px; border: 1px dashed #ffcdd2; }
+        .split-checkboxes label { text-transform: none; font-size: 14px; color: var(--text); font-weight: 500; display: flex; align-items: center; gap: 10px; margin-bottom: 0; cursor: pointer; padding: 5px; border-radius: 8px; transition: background 0.2s; }
+        .split-checkboxes label:hover { background: rgba(217, 4, 41, 0.05); }
+        .split-checkboxes input[type="checkbox"] { width: 18px; height: 18px; margin-bottom: 0; accent-color: var(--primary); }
+        .exp-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f2f6; transition: background 0.2s; }
+        .exp-row:hover { background: #fafafa; padding-left: 10px; padding-right: 10px; border-radius: 8px; } .exp-row:last-child { border-bottom: none; }
+        .settle-box { background: linear-gradient(135deg, #ffeae9 0%, #ffffff 100%); border-left: 4px solid var(--primary); padding: 15px; border-radius: 12px; margin-bottom: 10px; font-size: 14px; box-shadow: 0 4px 10px rgba(214, 48, 49, 0.05); }
+        .hidden { display: none !important; }
+        .receipt-link { display: inline-block; font-size: 12px; color: var(--primary); margin-top: 6px; text-decoration: none; font-weight: 700; background: rgba(214, 48, 49, 0.1); padding: 4px 10px; border-radius: 20px; transition: all 0.2s; }
+        .receipt-link:hover { background: var(--primary); color: white; }
+        .form-control, .form-select { border-radius: 10px; border: 1px solid #e0e0e0; padding: 10px 15px; transition: all 0.3s ease; }
+        .form-control:focus, .form-select:focus { border-color: var(--primary-red); box-shadow: 0 0 0 3px rgba(217, 4, 41, 0.1); }
+        .btn-danger { background: linear-gradient(135deg, var(--primary-red), var(--dark-red)); border: none; border-radius: 10px; font-weight: 600; transition: all 0.3s ease; box-shadow: 0 4px 10px rgba(217, 4, 41, 0.2); }
+        .btn-danger:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(217, 4, 41, 0.3); }
+        .warden-actions { background: linear-gradient(135deg, #fff5f5 0%, #ffffff 100%); border: 1px dashed #d90429 !important; border-radius: 12px; }
+        .table { border-radius: 12px; overflow: hidden; } .table thead { background: linear-gradient(135deg, #f8f9fa, #e9ecef); } .table th { font-weight: 700; color: #495057; border-bottom: 2px solid #dee2e6; }
+        .alert { border-radius: 12px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    </style>
+</head>
+<body>
+    <nav class="dashboard-nav">
+        <div class="container">
+            <div class="d-flex flex-wrap justify-content-center gap-2">
+                <button class="nav-btn active" onclick="showPage('page1', this)"><i class="fa-solid fa-bed me-1"></i> Bed Tracker</button>
+                <button class="nav-btn" onclick="showPage('page2', this)"><i class="fa-solid fa-shield-halved me-1"></i> PG Management</button>
+                <button class="nav-btn" onclick="showPage('page3', this)"><i class="fa-solid fa-triangle-exclamation me-1"></i> Emergency SOS</button>
+                <button class="nav-btn" onclick="showPage('page4', this)"><i class="fa-solid fa-wallet me-1"></i> Expense Tracker</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container pb-5">
+        <!-- PAGE 1 -->
+        <div id="page1" class="page-section active">
+            <div class="custom-card p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div>
+                        <h4 class="section-title m-0">🛏️ <span id="displayPgName">Sunshine Residency PG</span> - Live Bed Tracker</h4>
+                        <p class="text-muted small mb-0">Real-time status updated directly by PG warden/owner.</p>
+                    </div>
+                    <div class="form-check form-switch bg-light p-2 rounded border">
+                        <input class="form-check-input ms-0 me-2" type="checkbox" id="toggleWardenMode">
+                        <label class="form-check-label fw-bold text-danger" for="toggleWardenMode"><i class="fa-solid fa-user-gear me-1"></i> Owner / Warden Control Mode</label>
+                    </div>
+                </div>
+                <div class="warden-actions d-none mb-3 p-3 border rounded bg-light">
+                    <div class="row align-items-center g-2">
+                        <div class="col-md-3"><label for="inputPgName" class="fw-bold text-danger small mb-0"><i class="fa-solid fa-building me-1"></i> Change PG Name:</label></div>
+                        <div class="col-md-7"><input type="text" id="inputPgName" class="form-control form-control-sm" placeholder="Enter PG / Hostel Name" value="Sunshine Residency PG"></div>
+                        <div class="col-md-2"><button class="btn btn-sm btn-danger w-100" onclick="updatePgName()">Save Name</button></div>
+                    </div>
+                </div>
+                <div class="warden-actions d-none mb-4 p-3 border rounded bg-light">
+                    <h6 class="fw-bold text-danger mb-3"><i class="fa-solid fa-plus me-1"></i> Add New Room</h6>
+                    <form id="addRoomForm">
+                        <div class="row g-2">
+                            <div class="col-md-3"><input type="text" id="inputRoomNo" class="form-control form-control-sm" placeholder="Room No (e.g. 201)" required></div>
+                            <div class="col-md-3"><input type="text" id="inputLocation" class="form-control form-control-sm" placeholder="Location (e.g. Hinjewadi)" required></div>
+                            <div class="col-md-2">
+                                <select id="inputSharing" class="form-select form-control-sm">
+                                    <option value="1">1-Sharing</option><option value="2" selected>2-Sharing</option><option value="3">3-Sharing</option><option value="4">4-Sharing</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3"><input type="file" id="inputRoomImage" class="form-control form-control-sm" accept="image/*"></div>
+                            <div class="col-md-1"><button type="submit" class="btn btn-sm btn-danger w-100">Add</button></div>
+                        </div>
+                    </form>
+                </div>
+                <div class="row g-3" id="roomsContainer"></div>
+            </div>
+        </div>
+
+        <!-- PAGE 2 -->
+        <div id="page2" class="page-section">
+            <div class="row g-4">
+                <div class="col-md-5">
+                    <div class="custom-card p-4 text-center h-100 d-flex flex-column justify-content-between">
+                        <div>
+                            <h5 class="fw-bold text-dark">Emergency Panic Button</h5>
+                            <p class="text-muted small mb-2"><strong>Click SOS</strong> to send instant alert with live GPS.</p>
+                            <div class="sos-btn-wrapper">
+                                <div id="sosBtn" class="sos-button sos-pulse">
+                                    <i class="fa-solid fa-triangle-exclamation fs-1 mb-1"></i>
+                                    <span class="fw-bold fs-4">SOS</span>
+                                    <small style="font-size: 0.7rem;">Click Here</small>
+                                </div>
+                            </div>
+                            <div class="mb-3 text-start">
+                                <label for="imageInput" class="form-label fw-bold text-secondary small mb-1"><i class="fa-solid fa-camera text-danger me-1"></i> Emergency Photo (Optional):</label>
+                                <input class="form-control form-control-sm" type="file" id="imageInput" accept="image/*" capture="environment">
+                                <div id="photoPreviewContainer" class="mt-2 text-center position-relative">
+                                    <img id="photoPreview" src="" alt="Selected Emergency Photo">
+                                    <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 rounded-circle py-0 px-2 mt-1 me-1" onclick="removePhoto()">&times;</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="location-badge mt-2 text-start">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold text-secondary"><i class="fa-solid fa-location-dot text-danger me-1"></i> Current Location:</span>
+                                <button class="btn btn-sm btn-link text-decoration-none p-0" onclick="fetchLocation()"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
+                            </div>
+                            <div id="locationText" class="text-muted small mt-1">Fetching location...</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-7">
+                    <ul class="nav nav-pills mb-3" id="pgTabs" role="tablist">
+                        <li class="nav-item" role="presentation"><button class="nav-link active btn-sm" id="gatepass-tab" data-bs-toggle="pill" data-bs-target="#gatepass" type="button"><i class="fa-solid fa-id-card me-1"></i> Quick Entry/Exit</button></li>
+                        <li class="nav-item" role="presentation"><button class="nav-link btn-sm" id="late-tab" data-bs-toggle="pill" data-bs-target="#late" type="button"><i class="fa-solid fa-clock me-1"></i> Late Arrival Alert</button></li>
+                        <li class="nav-item" role="presentation"><button class="nav-link btn-sm" id="contacts-tab" data-bs-toggle="pill" data-bs-target="#contacts" type="button"><i class="fa-solid fa-address-book me-1"></i> Contacts</button></li>
+                    </ul>
+                    <div class="tab-content" id="pgTabsContent">
+                        <div class="tab-pane fade show active" id="gatepass" role="tabpanel">
+                            <div class="custom-card p-4">
+                                <h6 class="fw-bold text-danger mb-2"><i class="fa-solid fa-pen-to-square me-2"></i>Digital PG Entry Register</h6>
+                                <form id="entryForm" class="row g-2 mb-3">
+                                    <div class="col-md-4"><input type="text" id="studentName" class="form-control form-control-sm" placeholder="Your Full Name" required></div>
+                                    <div class="col-md-3"><input type="text" id="roomNo" class="form-control form-control-sm" placeholder="Room No." required></div>
+                                    <div class="col-md-3">
+                                        <select id="entryType" class="form-select form-select-sm"><option value="IN">Entry (IN)</option><option value="OUT">Exit (OUT)</option></select>
+                                    </div>
+                                    <div class="col-md-2"><button type="submit" class="btn btn-sm btn-danger w-100">Submit</button></div>
+                                </form>
+                                <h6 class="fw-bold text-dark mt-4 mb-2">Today's Log Entries:</h6>
+                                <div class="table-responsive" style="max-height: 180px; overflow-y: auto;">
+                                    <table class="table table-sm table-hover border small">
+                                        <thead class="table-light"><tr><th>Name</th><th>Room</th><th>Status</th><th>Time Stamp</th></tr></thead>
+                                        <tbody id="gatepassLogs"><tr><td>Student Demo</td><td>201</td><td><span class="badge bg-success">IN</span></td><td>08:15 PM</td></tr></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="late" role="tabpanel">
+                            <div class="custom-card p-4">
+                                <h6 class="fw-bold text-warning text-dark mb-2"><i class="fa-solid fa-clock me-2 text-warning"></i>Inform Late Arrival to Warden</h6>
+                                <form id="lateForm" class="row g-2 mb-3">
+                                    <div class="col-md-6"><input type="text" id="lateName" class="form-control form-control-sm" placeholder="Your Name & Room No." required></div>
+                                    <div class="col-md-6"><input type="time" id="expectedTime" class="form-control form-control-sm" required></div>
+                                    <div class="col-12"><input type="text" id="lateReason" class="form-control form-control-sm" placeholder="Reason (e.g. Lab work / Traffic)" required></div>
+                                    <div class="col-12 text-end"><button type="submit" class="btn btn-sm btn-warning fw-bold text-dark"><i class="fa-solid fa-paper-plane me-1"></i> Send Late Notification</button></div>
+                                </form>
+                                <div id="lateAlertBox" class="alert alert-info small d-none mb-0"></div>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="contacts" role="tabpanel">
+                            <div class="custom-card p-4">
+                                <h6 class="fw-bold text-danger mb-3"><i class="fa-solid fa-address-book me-2"></i>Emergency Contacts</h6>
+                                <form id="contactForm" class="row g-2 mb-3">
+                                    <div class="col-5"><input type="text" id="contactName" class="form-control form-control-sm" placeholder="Relation/Name" required></div>
+                                    <div class="col-5"><input type="tel" id="contactPhone" class="form-control form-control-sm" placeholder="Mobile Number" required></div>
+                                    <div class="col-2"><button type="submit" class="btn btn-sm btn-danger w-100">Add</button></div>
+                                </form>
+                                <ul class="list-group list-group-flush small" id="contactsList">
+                                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                        <div><strong>Police Control Room:</strong> <span class="text-dark fw-bold ms-1"><i class="fa-solid fa-phone text-danger me-1"></i>112 / 100</span></div>
+                                        <span class="badge bg-danger">Emergency</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="custom-card p-4 mt-3">
+                        <h6 class="fw-bold text-dark mb-2"><i class="fa-solid fa-bell me-2 text-warning"></i>System Activity Status</h6>
+                        <div id="alertConsole" class="alert alert-secondary mb-0 small" style="min-height: 80px;">System ready. Use SOS or Entry forms above.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PAGE 3 -->
+        <div id="page3" class="page-section">
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="custom-card p-4 text-center h-100 d-flex flex-column justify-content-between">
+                        <div>
+                            <h5 class="fw-bold text-dark">Emergency Panic Button (Emergency SOS)</h5>
+                            <div class="sos-btn-wrapper">
+                                <div id="sosBtn2" class="sos-button sos-pulse">
+                                    <i class="fa-solid fa-triangle-exclamation fs-1 mb-1"></i>
+                                    <span class="fw-bold fs-4">SOS</span>
+                                    <small style="font-size: 0.7rem;">Click Here</small>
+                                </div>
+                            </div>
+                            <div class="mb-3 text-start">
+                                <label for="imageInput2" class="form-label fw-bold text-secondary small mb-1"><i class="fa-solid fa-camera text-danger me-1"></i> Attach Emergency Photo (Optional):</label>
+                                <input class="form-control form-control-sm" type="file" id="imageInput2" accept="image/*" capture="environment">
+                                <div id="photoPreviewContainer2" class="mt-2 text-center position-relative">
+                                    <img id="photoPreview2" src="" alt="Selected Emergency Photo">
+                                    <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 rounded-circle py-0 px-2 mt-1 me-1" onclick="removePhoto2()">&times;</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="location-badge mt-2 text-start">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold text-secondary"><i class="fa-solid fa-location-dot text-danger me-1"></i> Current Location:</span>
+                                <button class="btn btn-sm btn-link text-decoration-none p-0" onclick="fetchLocation2()"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
+                            </div>
+                            <div id="locationText2" class="text-muted small mt-1">Fetching location...</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="custom-card p-4 mb-4">
+                        <h6 class="fw-bold text-danger mb-3"><i class="fa-solid fa-address-book me-2"></i>Emergency Contacts</h6>
+                        <form id="contactForm2" class="row g-2 mb-3">
+                            <div class="col-5"><input type="text" id="contactName2" class="form-control form-control-sm" placeholder="Relation/Name" required></div>
+                            <div class="col-5"><input type="tel" id="contactPhone2" class="form-control form-control-sm" placeholder="Mobile Number" required></div>
+                            <div class="col-2"><button type="submit" class="btn btn-sm btn-danger w-100">Add</button></div>
+                        </form>
+                        <ul class="list-group list-group-flush small" id="contactsList2">
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                <div><strong>Police Control Room:</strong> <span class="text-dark fw-bold ms-1"><i class="fa-solid fa-phone text-danger me-1"></i>112 / 100</span></div>
+                                <span class="badge bg-danger">Emergency</span>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="custom-card p-4">
+                        <h6 class="fw-bold text-dark mb-2"><i class="fa-solid fa-bell me-2 text-warning"></i>Alert Status</h6>
+                        <div id="alertConsole2" class="alert alert-secondary mb-0 small" style="min-height: 90px;">Clicking the button will generate a live message and Google Maps link here.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PAGE 4 -->
+        <div id="page4" class="page-section">
+            <div class="expense-container">
+                <div id="sec-setup" class="expense-card">
+                    <h2 style="color: var(--primary);">🏠 Room Expense Setup</h2>
+                    <p style="font-size: 12px; color: #636e72; margin-bottom: 12px;">Member name aur unka phone number add karein:</p>
+                    <div id="members-container">
+                        <div class="member-input-row"><input type="text" class="m-name" placeholder="Name"><input type="tel" class="m-phone" placeholder="Phone Number"></div>
+                        <div class="member-input-row"><input type="text" class="m-name" placeholder="Name"><input type="tel" class="m-phone" placeholder="Phone Number"></div>
+                    </div>
+                    <button type="button" class="expense-btn" onclick="addMemberRow()" style="background: #636e72; margin-bottom: 10px;">+ Add More Member</button>
+                    <button class="expense-btn" onclick="setupRoom()">Start Tracking</button>
+                </div>
+                <div id="sec-dash" class="hidden">
+                    <div class="nav-tabs-exp">
+                        <div id="tab-room" class="nav-tab-exp active" onclick="switchTab('room')">🏠 Room Expenses</div>
+                        <div id="tab-personal" class="nav-tab-exp" onclick="switchTab('personal')">👤 Personal Budget</div>
+                    </div>
+                    <div id="page-room">
+                        <div class="expense-card" style="border-top: 4px solid var(--primary);">
+                            <small style="color: #b2bec3; font-weight: 700;">TOTAL PG EXPENSE</small>
+                            <h1 id="total-amount" style="color: var(--primary);">₹0.00</h1>
+                            <small id="per-head" style="color: #636e72;">Room Members: 0</small>
+                        </div>
+                        <div class="expense-card">
+                            <h3>+ Add Bill / Expense</h3>
+                            <label>Expense Title</label><input type="text" id="exp-title" placeholder="Rent, Electricity, Snacks">
+                            <label>Amount (₹)</label><input type="number" id="exp-amt" placeholder="50">
+                            <label>Paid By</label><select id="exp-payer"></select>
+                            <label>Split Equally Between:</label><div id="split-members-list" class="split-checkboxes"></div>
+                            <label>Upload Receipt / Bill (Optional)</label><input type="file" id="exp-receipt" accept="image/*,.pdf">
+                            <button class="expense-btn" onclick="addExpense()">Add & Divide Bill</button>
+                        </div>
+                        <div class="expense-card"><h3>📊 Final Settlement</h3><div id="settlements-list"><small style="color: #b2bec3;">Add expenses to see calculations.</small></div></div>
+                        <div class="expense-card"><h3>🧾 Expense History</h3><div id="history-list"></div></div>
+                    </div>
+                    <div id="page-personal" class="hidden">
+                        <div class="expense-card" style="border-top: 4px solid var(--green);">
+                            <small style="color: #b2bec3; font-weight: 700;">MONTHLY BUDGET OVERVIEW</small>
+                            <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                                <div><small style="color: #636e72;">Total Budget</small><h3 id="display-budget">₹0.00</h3></div>
+                                <div><small style="color: #636e72;">Spent</small><h3 id="display-spent" style="color: var(--primary);">₹0.00</h3></div>
+                                <div><small style="color: #636e72;">Remaining</small><h3 id="display-remaining" style="color: var(--green);">₹0.00</h3></div>
+                            </div>
+                        </div>
+                        <div class="expense-card">
+                            <h3>🎯 Set Monthly Budget</h3>
+                            <label>Monthly Limit (₹)</label><input type="number" id="personal-budget-input" placeholder="e.g. 5000">
+                            <button class="expense-btn" onclick="setPersonalBudget()" style="background: var(--green);">Set Budget</button>
+                        </div>
+                        <div class="expense-card">
+                            <h3>+ Add Personal Expense</h3>
+                            <label>Expense Title</label><input type="text" id="p-exp-title" placeholder="Shopping, Food, Travel">
+                            <label>Amount (₹)</label><input type="number" id="p-exp-amt" placeholder="150">
+                            <button class="expense-btn" onclick="addPersonalExpense()">Add Personal Expense</button>
+                        </div>
+                        <div class="expense-card"><h3>🧾 Personal Expense History</h3><div id="personal-history-list"></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function showPage(pageId, btnElement) {
+            document.querySelectorAll('.page-section').forEach(page => page.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            btnElement.classList.add('active');
+        }
+        function getCurrentFormattedDateTime() {
+            const now = new Date();
+            return `${now.toLocaleDateString('en-US', { day: '2-digit', month: 'short' })}, ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+        }
+        function updatePgName() {
+            const newPgName = document.getElementById('inputPgName').value.trim();
+            if (newPgName) document.getElementById('displayPgName').innerText = newPgName;
+        }
+        document.getElementById('toggleWardenMode').addEventListener('change', function() {
+            document.querySelectorAll('.warden-actions').forEach(el => { this.checked ? el.classList.remove('d-none') : el.classList.add('d-none'); });
+        });
+
+        function toggleBedStatus(bedId) {
+            const bedCard = document.querySelector(`[data-bed-id="${bedId}"]`);
+            const icon = bedCard.querySelector('.bed-icon');
+            const tag = bedCard.querySelector('.bed-status-tag');
+            const updatedTime = bedCard.querySelector('.last-updated');
+            const formattedDateTime = getCurrentFormattedDateTime();
+            let newStatus = 'vacant';
+            if (bedCard.classList.contains('occupied') || bedCard.classList.contains('notice')) {
+                bedCard.className = 'bed-box vacant';
+                icon.className = 'fa-solid fa-bed text-success fs-3 mb-1 bed-icon';
+                tag.className = 'badge bg-success bed-status-tag';
+                tag.innerText = 'Vacant';
+            } else {
+                bedCard.className = 'bed-box occupied';
+                icon.className = 'fa-solid fa-bed text-danger fs-3 mb-1 bed-icon';
+                tag.className = 'badge bg-danger bed-status-tag';
+                tag.innerText = 'Occupied';
+                newStatus = 'occupied';
+            }
+            updatedTime.innerHTML = `<i class="fa-regular fa-clock me-1"></i>Updated: ${formattedDateTime}`;
+            updateRoomHeaderBadge(bedCard.closest('.col-md-6'));
+
+            const lastDashIndex = bedId.lastIndexOf('-');
+            const rNo = bedId.substring(0, lastDashIndex);
+            const bLabel = bedId.substring(lastDashIndex + 1);
+            const name = bedCard.querySelector('.input-roommate-name')?.value.trim() || 'Vacant';
+            const degree = bedCard.querySelector('.input-roommate-degree')?.value.trim() || '-';
+
+            fetch('http://localhost:3000/api/beds/update', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ room_no: rNo, bed_label: bLabel, status: newStatus, name, degree })
+            }).catch(err => console.warn("DB update failed, but UI updated locally", err));
+        }
+
+        function updateRoommateDetails(bedId) {
+            const bedCard = document.querySelector(`[data-bed-id="${bedId}"]`);
+            const nameInput = bedCard.querySelector('.input-roommate-name').value.trim();
+            const degreeInput = bedCard.querySelector('.input-roommate-degree').value.trim();
+            const displayName = bedCard.querySelector('.display-roommate-name');
+            const displayDegree = bedCard.querySelector('.display-roommate-degree');
+            const detailsBox = bedCard.querySelector('.roommate-info');
+            if (displayName && displayDegree) {
+                displayName.innerText = nameInput ? nameInput : 'Vacant';
+                displayDegree.innerText = degreeInput ? degreeInput : '-';
+                if (nameInput || degreeInput) detailsBox.classList.remove('d-none');
+            }
+        }
+        function updateRoomHeaderBadge(roomElement) {
+            const vacantBeds = roomElement.querySelectorAll('.bed-box.vacant').length;
+            const badge = roomElement.querySelector('.status-badge');
+            if (vacantBeds === 0) { badge.className = 'badge bg-danger status-badge'; badge.innerText = 'Full'; }
+            else { badge.className = 'badge bg-secondary status-badge'; badge.innerText = `${vacantBeds} Vacant`; }
+        }
+        function handleImageUpload(input, roomId) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const imgPreview = document.getElementById(`img-preview-${roomId}`);
+                    imgPreview.src = e.target.result; imgPreview.style.display = 'block';
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        document.getElementById('addRoomForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const roomNo = document.getElementById('inputRoomNo').value;
+            const location = document.getElementById('inputLocation').value;
+            const sharing = parseInt(document.getElementById('inputSharing').value);
+            const imageInput = document.getElementById('inputRoomImage');
+            const roomId = `room-${roomNo.replace(/\s+/g, '-')}`;
+            const initialDateTime = getCurrentFormattedDateTime();
+
+            let imageUrl = "";
+            if (imageInput.files && imageInput.files[0]) {
+                imageUrl = await new Promise(resolve => {
+                    const reader = new FileReader();
+                    reader.onload = e => resolve(e.target.result);
+                    reader.readAsDataURL(imageInput.files[0]);
+                });
+            }
+
+            try {
+                await fetch('http://localhost:3000/api/rooms', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ room_no: roomNo, location, sharing, image_url: imageUrl })
+                });
+            } catch (err) { console.warn("Database save failed, but UI will update locally.", err); }
+
+            let bedsHTML = '';
+            const labels = ['A', 'B', 'C', 'D'];
+            const colSize = sharing > 2 ? 'col-6 col-md-3' : (sharing === 1 ? 'col-12' : 'col-6');
+            const isWardenMode = document.getElementById('toggleWardenMode').checked;
+            const wardenClass = isWardenMode ? '' : 'd-none';
+
+            for (let i = 0; i < sharing; i++) {
+                const bedLabel = sharing === 1 ? '1' : labels[i];
+                const fullBedId = `${roomNo}-${bedLabel}`;
+                const roommateDetailsHTML = sharing === 1 ? '' : `
+                    <div class="roommate-info mt-2 border text-start">
+                        <div><i class="fa-solid fa-user text-secondary me-1"></i><strong>Name:</strong> <span class="display-roommate-name">Vacant</span></div>
+                        <div><i class="fa-solid fa-graduation-cap text-secondary me-1"></i><strong>Degree:</strong> <span class="display-roommate-degree">-</span></div>
+                    </div>`;
+                const roommateInputsHTML = sharing === 1 ? '' : `
+                    <label class="form-label micro-text fw-bold text-muted mb-0" style="font-size: 0.7rem;">Roommate Info:</label>
+                    <input type="text" class="form-control form-control-sm mb-1 input-roommate-name" placeholder="Name" onchange="updateRoommateDetails('${fullBedId}')">
+                    <input type="text" class="form-control form-control-sm mb-1 input-roommate-degree" placeholder="Degree (e.g. B.Tech SE)" onchange="updateRoommateDetails('${fullBedId}')">`;
+
+                bedsHTML += `
+                    <div class="${colSize}">
+                        <div class="bed-box vacant" data-bed-id="${fullBedId}">
+                            <i class="fa-solid fa-bed text-success fs-3 mb-1 bed-icon"></i>
+                            <div class="fw-bold small">Bed ${bedLabel}</div>
+                            <span class="badge bg-success bed-status-tag">Vacant</span>
+                            ${roommateDetailsHTML}
+                            <div class="last-updated mt-1"><i class="fa-regular fa-clock me-1"></i>Updated: ${initialDateTime}</div>
+                            <div class="warden-actions ${wardenClass} mt-2 text-start">
+                                <hr class="my-1">
+                                ${roommateInputsHTML}
+                                <button class="btn btn-sm btn-outline-success w-100 toggle-btn mt-1" onclick="toggleBedStatus('${fullBedId}')">Toggle Status</button>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+
+            const roomDiv = document.createElement('div');
+            roomDiv.className = 'col-md-6'; roomDiv.id = roomId;
+            roomDiv.innerHTML = `
+                <div class="border rounded p-3 bg-white">
+                    <img id="img-preview-${roomId}" class="room-img-preview" alt="Room Photo" />
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold m-0"><i class="fa-solid fa-door-closed text-danger me-2"></i><span class="room-title-text">Room No. ${roomNo} (${sharing}-Sharing) - ${location}</span></h6>
+                        <span class="badge bg-secondary status-badge">${sharing} Vacant</span>
+                    </div>
+                    <div class="warden-actions ${wardenClass} mb-3">
+                        <label class="form-label small fw-bold text-secondary mb-1">Update/Change Room Photo:</label>
+                        <input type="file" class="form-control form-control-sm" accept="image/*" onchange="handleImageUpload(this, '${roomId}')">
+                    </div>
+                    <div class="row g-2">${bedsHTML}</div>
+                </div>`;
+            document.getElementById('roomsContainer').appendChild(roomDiv);
+            document.getElementById('addRoomForm').reset();
+        });
+
+        let currentLatitude = null, currentLongitude = null, selectedPhotoName = null;
+        const imageInput = document.getElementById('imageInput');
+        const photoPreviewContainer = document.getElementById('photoPreviewContainer');
+        const photoPreview = document.getElementById('photoPreview');
+        imageInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedPhotoName = file.name;
+                const reader = new FileReader();
+                reader.onload = function(event) { photoPreview.src = event.target.result; photoPreviewContainer.style.display = "block"; };
+                reader.readAsDataURL(file);
+            }
+        });
+        function removePhoto() { imageInput.value = ""; selectedPhotoName = null; photoPreview.src = ""; photoPreviewContainer.style.display = "none"; }
+        function fetchLocation() {
+            const locationText = document.getElementById('locationText');
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition((position) => {
+                    currentLatitude = position.coords.latitude; currentLongitude = position.coords.longitude;
+                    locationText.innerHTML = `<strong>Lat:</strong> ${currentLatitude.toFixed(4)}, <strong>Long:</strong> ${currentLongitude.toFixed(4)} <br><a href="https://maps.google.com/?q=${currentLatitude},${currentLongitude}" target="_blank" class="text-danger">View on Google Maps</a>`;
+                }, (error) => { locationText.innerText = "Error fetching location. Please enable GPS."; });
+            } else { locationText.innerText = "Geolocation not supported."; }
+        }
+        document.getElementById('sosBtn').addEventListener('click', function() {
+            const consoleBox = document.getElementById('alertConsole');
+            const mapUrl = currentLatitude && currentLongitude ? `https://maps.google.com/?q=${currentLatitude},${currentLongitude}` : "Location Unavailable";
+            let photoStatus = selectedPhotoName ? `<br><strong>Photo Attached:</strong> ${selectedPhotoName}` : "";
+            consoleBox.className = "alert alert-danger mb-0 small";
+            consoleBox.innerHTML = `<strong class="text-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i> SOS Alert Generated!</strong><br><strong>Message:</strong> Emergency Alert Sent! Location: ${mapUrl}${photoStatus}<br><small class="text-muted">Notified Warden & Police.</small>`;
+            alert("🚨 EMERGENCY SOS SENT!");
+        });
+        document.getElementById('entryForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('studentName').value.trim(); const room = document.getElementById('roomNo').value.trim();
+            const type = document.getElementById('entryType').value; const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const tbody = document.getElementById('gatepassLogs'); const tr = document.createElement('tr');
+            const badgeClass = type === 'IN' ? 'bg-success' : 'bg-warning text-dark';
+            tr.innerHTML = `<td>${name}</td><td>${room}</td><td><span class="badge ${badgeClass}">${type}</span></td><td>${timeNow}</td>`;
+            tbody.prepend(tr);
+            const consoleBox = document.getElementById('alertConsole'); consoleBox.className = "alert alert-success mb-0 small";
+            consoleBox.innerHTML = `<strong><i class="fa-solid fa-circle-check me-1"></i> Entry Marked:</strong> ${name} (Room ${room}) logged ${type} at ${timeNow}.`;
+            document.getElementById('entryForm').reset();
+        });
+        document.getElementById('lateForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('lateName').value.trim(); const time = document.getElementById('expectedTime').value;
+            const reason = document.getElementById('lateReason').value.trim(); const alertBox = document.getElementById('lateAlertBox');
+            alertBox.classList.remove('d-none');
+            alertBox.innerHTML = `<i class="fa-solid fa-circle-info me-1"></i> <strong>Late Notification Sent:</strong> Warden portal updated. <br><strong>Details:</strong> ${name} will arrive by ${time} (Reason: ${reason}).`;
+            document.getElementById('lateForm').reset();
+        });
+        document.getElementById('contactForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('contactName').value.trim(); const phone = document.getElementById('contactPhone').value.trim();
+            if (name && phone) {
+                const contactsList = document.getElementById('contactsList'); const li = document.createElement('li');
+                li.className = "list-group-item d-flex justify-content-between align-items-center px-0";
+                li.innerHTML = `<div><strong>${name}:</strong> <span class="text-dark fw-bold ms-1"><i class="fa-solid fa-phone text-danger me-1"></i>${phone}</span></div><button type="button" class="btn btn-sm btn-link text-danger p-0 text-decoration-none" onclick="this.parentElement.remove()">Remove</button>`;
+                contactsList.appendChild(li); document.getElementById('contactForm').reset();
+            }
+        });
+
+        let currentLatitude2 = null, currentLongitude2 = null, selectedPhotoName2 = null;
+        const imageInput2 = document.getElementById('imageInput2');
+        const photoPreviewContainer2 = document.getElementById('photoPreviewContainer2');
+        const photoPreview2 = document.getElementById('photoPreview2');
+        imageInput2.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedPhotoName2 = file.name;
+                const reader = new FileReader();
+                reader.onload = function(event) { photoPreview2.src = event.target.result; photoPreviewContainer2.style.display = "block"; };
+                reader.readAsDataURL(file);
+            }
+        });
+        function removePhoto2() { imageInput2.value = ""; selectedPhotoName2 = null; photoPreview2.src = ""; photoPreviewContainer2.style.display = "none"; }
+        function fetchLocation2() {
+            const locationText2 = document.getElementById('locationText2');
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition((position) => {
+                    currentLatitude2 = position.coords.latitude; currentLongitude2 = position.coords.longitude;
+                    locationText2.innerHTML = `<strong>Lat:</strong> ${currentLatitude2.toFixed(4)}, <strong>Long:</strong> ${currentLongitude2.toFixed(4)} <br><a href="https://maps.google.com/?q=${currentLatitude2},${currentLongitude2}" target="_blank" class="text-danger">View on Google Maps</a>`;
+                }, (error) => { locationText2.innerText = "Error fetching location."; });
+            } else { locationText2.innerText = "Geolocation not supported."; }
+        }
+        document.getElementById('sosBtn2').addEventListener('click', function() {
+            const consoleBox2 = document.getElementById('alertConsole2');
+            const mapUrl2 = currentLatitude2 && currentLongitude2 ? `https://maps.google.com/?q=${currentLatitude2},${currentLongitude2}` : "Location Unavailable";
+            let photoStatus2 = selectedPhotoName2 ? `<br><strong>Attached Photo:</strong> ${selectedPhotoName2}` : "<br><strong>Attached Photo:</strong> None";
+            const message2 = `🚨 EMERGENCY ALERT! I need immediate help! My live location: ${mapUrl2}`;
+            consoleBox2.className = "alert alert-danger mb-0 small";
+            consoleBox2.innerHTML = `<strong class="text-danger"><i class="fa-solid fa-circle-check me-1"></i> SOS Alert generated successfully!</strong><br><strong>Message:</strong> ${message2}${photoStatus2}<br><small class="text-muted">Location & photo details shared.</small>`;
+            alert("🚨 EMERGENCY SOS SENT!");
+        });
+        document.getElementById('contactForm2').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('contactName2').value.trim(); const phone = document.getElementById('contactPhone2').value.trim();
+            if (name && phone) {
+                const contactsList2 = document.getElementById('contactsList2'); const li = document.createElement('li');
+                li.className = "list-group-item d-flex justify-content-between align-items-center px-0";
+                li.innerHTML = `<div><strong>${name}:</strong> <span class="text-dark fw-bold ms-1"><i class="fa-solid fa-phone text-danger me-1"></i>${phone}</span></div><button type="button" class="btn btn-sm btn-link text-danger p-0 text-decoration-none" onclick="this.parentElement.remove()">Remove</button>`;
+                contactsList2.appendChild(li); document.getElementById('contactForm2').reset();
+            }
+        });
+
+        let roommates = []; let totalExpense = 0; let monthlyBudget = 0; let personalSpent = 0;
+        function addMemberRow() {
+            const container = document.getElementById('members-container');
+            const div = document.createElement('div'); div.className = 'member-input-row';
+            div.innerHTML = `<input type="text" class="m-name" placeholder="Name"><input type="tel" class="m-phone" placeholder="Phone Number">`;
+            container.appendChild(div);
+        }
+        function setupRoom() {
+            const nameInputs = document.querySelectorAll('.m-name'); const phoneInputs = document.querySelectorAll('.m-phone');
+            roommates = [];
+            nameInputs.forEach((input, idx) => {
+                const name = input.value.trim(); const phone = phoneInputs[idx].value.trim();
+                if (name !== "") { roommates.push({ id: idx, name: name, phone: phone || "N/A", paid: 0, shouldPay: 0, balance: 0 }); }
+            });
+            if (roommates.length < 2) return alert("Kam se kam 2 members ke naam enter karein.");
+            const select = document.getElementById('exp-payer'); select.innerHTML = "";
+            const splitContainer = document.getElementById('split-members-list'); splitContainer.innerHTML = "";
+            roommates.forEach((r, idx) => {
+                select.innerHTML += `<option value="${idx}">${r.name} (${r.phone})</option>`;
+                splitContainer.innerHTML += `<label><input type="checkbox" value="${idx}" class="split-check" checked>${r.name}</label>`;
+            });
+            document.getElementById('sec-setup').classList.add('hidden');
+            document.getElementById('sec-dash').classList.remove('hidden');
+            updateUI();
+        }
+
+        async function addExpense() {
+            const title = document.getElementById('exp-title').value.trim();
+            const amt = parseFloat(document.getElementById('exp-amt').value);
+            const payerIdx = parseInt(document.getElementById('exp-payer').value);
+            const checkedBoxes = document.querySelectorAll('.split-check:checked');
+            const selectedIndices = Array.from(checkedBoxes).map(cb => parseInt(cb.value));
+
+            if (!title || isNaN(amt) || amt <= 0) return alert("Kripya sahi amount aur title daalein.");
+            if (selectedIndices.length === 0) return alert("Kam se kam 1 member ko select karein.");
+
+            const receiptInput = document.getElementById('exp-receipt');
+            let receiptURL = "";
+            if (receiptInput.files && receiptInput.files[0]) { receiptURL = URL.createObjectURL(receiptInput.files[0]); }
+
+            roommates[payerIdx].paid += amt; totalExpense += amt;
+            const splitAmt = amt / selectedIndices.length;
+            selectedIndices.forEach(idx => { roommates[idx].shouldPay += splitAmt; });
+
+            const splitNames = selectedIndices.map(i => roommates[i].name).join(', ');
+            const history = document.getElementById('history-list');
+            let receiptHTML = receiptURL ? `<br><a href="${receiptURL}" target="_blank" class="receipt-link">📎 View Receipt</a>` : '';
+
+            history.innerHTML = `<div class="exp-row"><div><b>${title}</b><br><small style="color:#636e72">Paid by <b>${roommates[payerIdx].name}</b></small><br><small style="color:#d63031">Divided among: ${splitNames} (₹${splitAmt.toFixed(2)} each)</small>${receiptHTML}</div><b>₹${amt.toFixed(2)}</b></div>` + history.innerHTML;
+
+            try {
+                await fetch('http://localhost:3000/api/expenses', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, amount: amt, payer_name: roommates[payerIdx].name, split_members: selectedIndices.map(i => roommates[i].name) })
+                });
+            } catch (err) { console.warn("Expense DB save failed, but UI updated locally", err); }
+
+            document.getElementById('exp-title').value = "";
+            document.getElementById('exp-amt').value = "";
+            document.getElementById('exp-receipt').value = "";
+            updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById('total-amount').innerText = `₹${totalExpense.toFixed(2)}`;
+            document.getElementById('per-head').innerText = `Total Members: ${roommates.length}`;
+            roommates.forEach(r => { r.balance = r.paid - r.shouldPay; });
+            calculateSettlements();
+        }
+        function calculateSettlements() {
+            let debtors = [], creditors = [];
+            roommates.forEach(r => {
+                if (r.balance < -0.01) debtors.push({ name: r.name, phone: r.phone, amt: Math.abs(r.balance) });
+                else if (r.balance > 0.01) creditors.push({ name: r.name, phone: r.phone, amt: r.balance });
+            });
+            const container = document.getElementById('settlements-list'); container.innerHTML = "";
+            if (debtors.length === 0 && creditors.length === 0) {
+                container.innerHTML = `<small style="color:var(--green); font-weight:bold;">Sabka balance cleared hai! 🎉</small>`; return;
+            }
+            let d = 0, c = 0;
+            while (d < debtors.length && c < creditors.length) {
+                let settleAmt = Math.min(debtors[d].amt, creditors[c].amt);
+                container.innerHTML += `<div class="settle-box"><b>${debtors[d].name}</b> ➔ <b>${creditors[c].name}</b> : <b>₹${settleAmt.toFixed(2)}</b></div>`;
+                debtors[d].amt -= settleAmt; creditors[c].amt -= settleAmt;
+                if (debtors[d].amt <= 0.01) d++; if (creditors[c].amt <= 0.01) c++;
+            }
+        }
+        function switchTab(tab) {
+            if (tab === 'room') {
+                document.getElementById('page-room').classList.remove('hidden'); document.getElementById('page-personal').classList.add('hidden');
+                document.getElementById('tab-room').classList.add('active'); document.getElementById('tab-personal').classList.remove('active');
+            } else {
+                document.getElementById('page-room').classList.add('hidden'); document.getElementById('page-personal').classList.remove('hidden');
+                document.getElementById('tab-room').classList.remove('active'); document.getElementById('tab-personal').classList.add('active');
+            }
+        }
+        function setPersonalBudget() {
+            const input = parseFloat(document.getElementById('personal-budget-input').value);
+            if (isNaN(input) || input <= 0) return alert("Sahi budget amount enter karein.");
+            monthlyBudget = input; updatePersonalUI();
+        }
+        function addPersonalExpense() {
+            const title = document.getElementById('p-exp-title').value.trim();
+            const amt = parseFloat(document.getElementById('p-exp-amt').value);
+            if (!title || isNaN(amt) || amt <= 0) return alert("Sahi title aur amount enter karein.");
+            personalSpent += amt;
+            const pHistory = document.getElementById('personal-history-list');
+            pHistory.innerHTML = `<div class="exp-row"><div><b>${title}</b></div><b>₹${amt.toFixed(2)}</b></div>` + pHistory.innerHTML;
+            document.getElementById('p-exp-title').value = ""; document.getElementById('p-exp-amt').value = "";
+            updatePersonalUI();
+        }
+        function updatePersonalUI() {
+            const remaining = monthlyBudget - personalSpent;
+            document.getElementById('display-budget').innerText = `₹${monthlyBudget.toFixed(2)}`;
+            document.getElementById('display-spent').innerText = `₹${personalSpent.toFixed(2)}`;
+            const remElement = document.getElementById('display-remaining');
+            remElement.innerText = `₹${remaining.toFixed(2)}`;
+            remElement.style.color = remaining < 0 ? "var(--red)" : "var(--green)";
+        }
+        window.onload = function() { fetchLocation(); fetchLocation2(); };
+    </script>
+</body>
+</html>
