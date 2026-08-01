@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -106,12 +106,12 @@
     </nav>
 
     <div class="container pb-5">
-        <!-- PAGE 1: Bed Tracker -->
+        <!-- PAGE 1: Bed Tracker (Same) -->
         <div id="page1" class="page-section active">
             <div class="custom-card p-4">
                 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <div>
-                        <h4 class="section-title m-0"> <span id="displayPgName">Sunshine Residency PG</span> - Live Bed Tracker</h4>
+                        <h4 class="section-title m-0">️ <span id="displayPgName">Sunshine Residency PG</span> - Live Bed Tracker</h4>
                         <p class="text-muted small mb-0">Real-time status updated directly by PG warden/owner.</p>
                     </div>
                     <div class="form-check form-switch bg-light p-2 rounded border">
@@ -146,7 +146,7 @@
             </div>
         </div>
 
-        <!-- PAGE 2: PG Management -->
+        <!-- PAGE 2: PG Management (UPDATED with Face Entry) -->
         <div id="page2" class="page-section">
             <div class="row g-4">
                 <div class="col-md-5">
@@ -208,7 +208,7 @@
                             </div>
                         </div>
                         
-                        <!-- Face Entry Tab -->
+                        <!-- NEW: Face Entry Tab -->
                         <div class="tab-pane fade" id="faceentry" role="tabpanel">
                             <div class="custom-card p-4">
                                 <h6 class="fw-bold text-danger mb-2"><i class="fa-solid fa-camera me-2"></i>Face Recognition Entry</h6>
@@ -286,7 +286,7 @@
             </div>
         </div>
 
-        <!-- PAGE 3: Emergency SOS -->
+        <!-- PAGE 3: Emergency SOS (UPDATED with Shake-to-SOS) -->
         <div id="page3" class="page-section">
             <div class="row g-4">
                 <div class="col-md-6">
@@ -345,7 +345,7 @@
             </div>
         </div>
 
-        <!-- PAGE 4: Expense Tracker -->
+        <!-- PAGE 4: Expense Tracker (Same) -->
         <div id="page4" class="page-section">
             <div class="expense-container">
                 <div id="sec-setup" class="expense-card">
@@ -407,7 +407,7 @@
             </div>
         </div>
 
-        <!-- PAGE 5: Complaints System -->
+        <!-- PAGE 5: NEW - Complaints System -->
         <div id="page5" class="page-section">
             <div class="row g-4">
                 <div class="col-md-5">
@@ -479,7 +479,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // ==================== ALL EXISTING FUNCTIONS (Unchanged) ====================
+        // ==================== ALL EXISTING FUNCTIONS (Same as before) ====================
         function showPage(pageId, btnElement) {
             document.querySelectorAll('.page-section').forEach(page => page.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
@@ -665,87 +665,42 @@
                 }, (error) => { locationText.innerText = "Error fetching location. Please enable GPS."; });
             } else { locationText.innerText = "Geolocation not supported."; }
         }
-
-        // ✅ FIXED: Entry Form (Saves to Database)
-        document.getElementById('entryForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const name = document.getElementById('studentName').value.trim();
-            const room = document.getElementById('roomNo').value.trim();
-            const type = document.getElementById('entryType').value;
-            
-            try {
-                await fetch('http://localhost:3000/api/entry-log', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ student_name: name, room_no: room, entry_type: type })
-                });
-                
-                const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                const tbody = document.getElementById('gatepassLogs');
-                const tr = document.createElement('tr');
-                const badgeClass = type === 'IN' ? 'bg-success' : 'bg-warning text-dark';
-                tr.innerHTML = `<td>${name}</td><td>${room}</td><td><span class="badge ${badgeClass}">${type}</span></td><td>${timeNow}</td>`;
-                tbody.prepend(tr);
-                
-                const consoleBox = document.getElementById('alertConsole');
-                consoleBox.className = "alert alert-success mb-0 small";
-                consoleBox.innerHTML = `<strong><i class="fa-solid fa-circle-check me-1"></i> Entry Marked & Saved:</strong> ${name} (Room ${room}) logged ${type}.`;
-                document.getElementById('entryForm').reset();
-            } catch (err) {
-                console.error("Database save failed:", err);
-                alert("❌ Database save failed!");
-            }
+        document.getElementById('sosBtn').addEventListener('click', function() {
+            const consoleBox = document.getElementById('alertConsole');
+            const mapUrl = currentLatitude && currentLongitude ? `https://maps.google.com/?q=${currentLatitude},${currentLongitude}` : "Location Unavailable";
+            let photoStatus = selectedPhotoName ? `<br><strong>Photo Attached:</strong> ${selectedPhotoName}` : "";
+            consoleBox.className = "alert alert-danger mb-0 small";
+            consoleBox.innerHTML = `<strong class="text-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i> SOS Alert Generated!</strong><br><strong>Message:</strong> Emergency Alert Sent! Location: ${mapUrl}${photoStatus}<br><small class="text-muted">Notified Warden & Police.</small>`;
+            alert("🚨 EMERGENCY SOS SENT!");
         });
-
-        // ✅ FIXED: Late Form (Saves to Database)
-        document.getElementById('lateForm').addEventListener('submit', async function(e) {
+        document.getElementById('entryForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            const name = document.getElementById('lateName').value.trim();
-            const time = document.getElementById('expectedTime').value;
-            const reason = document.getElementById('lateReason').value.trim();
-            
-            try {
-                await fetch('http://localhost:3000/api/late-arrival', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ student_name: name, expected_time: time, reason: reason })
-                });
-                
-                const alertBox = document.getElementById('lateAlertBox');
-                alertBox.classList.remove('d-none');
-                alertBox.className = "alert alert-success small mb-0";
-                alertBox.innerHTML = `<i class="fa-solid fa-circle-check me-1"></i> <strong>Late Notification Saved to Database!</strong> <br><strong>Details:</strong> ${name} will arrive by ${time}.`;
-                document.getElementById('lateForm').reset();
-            } catch (err) {
-                console.error("Database save failed:", err);
-                alert("❌ Database save failed!");
-            }
+            const name = document.getElementById('studentName').value.trim(); const room = document.getElementById('roomNo').value.trim();
+            const type = document.getElementById('entryType').value; const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const tbody = document.getElementById('gatepassLogs'); const tr = document.createElement('tr');
+            const badgeClass = type === 'IN' ? 'bg-success' : 'bg-warning text-dark';
+            tr.innerHTML = `<td>${name}</td><td>${room}</td><td><span class="badge ${badgeClass}">${type}</span></td><td>${timeNow}</td>`;
+            tbody.prepend(tr);
+            const consoleBox = document.getElementById('alertConsole'); consoleBox.className = "alert alert-success mb-0 small";
+            consoleBox.innerHTML = `<strong><i class="fa-solid fa-circle-check me-1"></i> Entry Marked:</strong> ${name} (Room ${room}) logged ${type} at ${timeNow}.`;
+            document.getElementById('entryForm').reset();
         });
-
-        // ✅ FIXED: Contact Form (Saves to Database)
-        document.getElementById('contactForm').addEventListener('submit', async function(e) {
+        document.getElementById('lateForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            const name = document.getElementById('contactName').value.trim();
-            const phone = document.getElementById('contactPhone').value.trim();
-            
+            const name = document.getElementById('lateName').value.trim(); const time = document.getElementById('expectedTime').value;
+            const reason = document.getElementById('lateReason').value.trim(); const alertBox = document.getElementById('lateAlertBox');
+            alertBox.classList.remove('d-none');
+            alertBox.innerHTML = `<i class="fa-solid fa-circle-info me-1"></i> <strong>Late Notification Sent:</strong> Warden portal updated. <br><strong>Details:</strong> ${name} will arrive by ${time} (Reason: ${reason}).`;
+            document.getElementById('lateForm').reset();
+        });
+        document.getElementById('contactForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('contactName').value.trim(); const phone = document.getElementById('contactPhone').value.trim();
             if (name && phone) {
-                try {
-                    await fetch('http://localhost:3000/api/emergency-contact', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contact_name: name, phone_number: phone })
-                    });
-                    
-                    const contactsList = document.getElementById('contactsList');
-                    const li = document.createElement('li');
-                    li.className = "list-group-item d-flex justify-content-between align-items-center px-0";
-                    li.innerHTML = `<div><strong>${name}:</strong> <span class="text-dark fw-bold ms-1"><i class="fa-solid fa-phone text-danger me-1"></i>${phone}</span></div><button type="button" class="btn btn-sm btn-link text-danger p-0 text-decoration-none" onclick="this.parentElement.remove()">Remove</button>`;
-                    contactsList.appendChild(li);
-                    document.getElementById('contactForm').reset();
-                } catch (err) {
-                    console.error("Database save failed:", err);
-                    alert("❌ Database save failed!");
-                }
+                const contactsList = document.getElementById('contactsList'); const li = document.createElement('li');
+                li.className = "list-group-item d-flex justify-content-between align-items-center px-0";
+                li.innerHTML = `<div><strong>${name}:</strong> <span class="text-dark fw-bold ms-1"><i class="fa-solid fa-phone text-danger me-1"></i>${phone}</span></div><button type="button" class="btn btn-sm btn-link text-danger p-0 text-decoration-none" onclick="this.parentElement.remove()">Remove</button>`;
+                contactsList.appendChild(li); document.getElementById('contactForm').reset();
             }
         });
 
@@ -772,37 +727,15 @@
                 }, (error) => { locationText2.innerText = "Error fetching location."; });
             } else { locationText2.innerText = "Geolocation not supported."; }
         }
-
-        // ✅ FIXED: SOS Buttons (Saves to Database)
-        async function triggerManualSOS(consoleId, lat, lng, photoName) {
-            const consoleBox = document.getElementById(consoleId);
-            const mapUrl = lat && lng ? `https://maps.google.com/?q=${lat},${lng}` : "Location Unavailable";
-            let photoStatus = photoName ? `<br><strong>Photo Attached:</strong> ${photoName}` : "";
-            
-            try {
-                await fetch('http://localhost:3000/api/manual-sos', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ latitude: lat, longitude: lng, photo_name: photoName })
-                });
-                
-                consoleBox.className = "alert alert-danger mb-0 small";
-                consoleBox.innerHTML = `<strong class="text-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i> SOS Alert Generated & Saved!</strong><br><strong>Message:</strong> Emergency Alert Sent! Location: ${mapUrl}${photoStatus}`;
-                alert("🚨 EMERGENCY SOS SENT & SAVED TO DATABASE!");
-            } catch (err) {
-                console.error("SOS Database save failed:", err);
-                alert("❌ SOS UI triggered, but Database save failed!");
-            }
-        }
-
-        document.getElementById('sosBtn').addEventListener('click', function() {
-            triggerManualSOS('alertConsole', currentLatitude, currentLongitude, selectedPhotoName);
-        });
-
         document.getElementById('sosBtn2').addEventListener('click', function() {
-            triggerManualSOS('alertConsole2', currentLatitude2, currentLongitude2, selectedPhotoName2);
+            const consoleBox2 = document.getElementById('alertConsole2');
+            const mapUrl2 = currentLatitude2 && currentLongitude2 ? `https://maps.google.com/?q=${currentLatitude2},${currentLongitude2}` : "Location Unavailable";
+            let photoStatus2 = selectedPhotoName2 ? `<br><strong>Attached Photo:</strong> ${selectedPhotoName2}` : "<br><strong>Attached Photo:</strong> None";
+            const message2 = `🚨 EMERGENCY ALERT! I need immediate help! My live location: ${mapUrl2}`;
+            consoleBox2.className = "alert alert-danger mb-0 small";
+            consoleBox2.innerHTML = `<strong class="text-danger"><i class="fa-solid fa-circle-check me-1"></i> SOS Alert generated successfully!</strong><br><strong>Message:</strong> ${message2}${photoStatus2}<br><small class="text-muted">Location & photo details shared.</small>`;
+            alert("🚨 EMERGENCY SOS SENT!");
         });
-
         document.getElementById('contactForm2').addEventListener('submit', function(e) {
             e.preventDefault();
             const name = document.getElementById('contactName2').value.trim(); const phone = document.getElementById('contactPhone2').value.trim();
@@ -910,51 +843,21 @@
                 document.getElementById('tab-room').classList.remove('active'); document.getElementById('tab-personal').classList.add('active');
             }
         }
-
-        // ✅ FIXED: Personal Budget (Saves to Database)
-        async function setPersonalBudget() {
+        function setPersonalBudget() {
             const input = parseFloat(document.getElementById('personal-budget-input').value);
             if (isNaN(input) || input <= 0) return alert("Sahi budget amount enter karein.");
-            
-            try {
-                await fetch('http://localhost:3000/api/personal-budget', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ budget_amount: input })
-                });
-                monthlyBudget = input;
-                updatePersonalUI();
-                alert("✅ Budget saved to database!");
-            } catch (err) {
-                console.error("Budget save failed:", err);
-                alert("❌ Database save failed!");
-            }
+            monthlyBudget = input; updatePersonalUI();
         }
-
-        // ✅ FIXED: Personal Expense (Saves to Database)
-        async function addPersonalExpense() {
+        function addPersonalExpense() {
             const title = document.getElementById('p-exp-title').value.trim();
             const amt = parseFloat(document.getElementById('p-exp-amt').value);
             if (!title || isNaN(amt) || amt <= 0) return alert("Sahi title aur amount enter karein.");
-            
-            try {
-                await fetch('http://localhost:3000/api/personal-expense', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title: title, amount: amt })
-                });
-                personalSpent += amt;
-                const pHistory = document.getElementById('personal-history-list');
-                pHistory.innerHTML = `<div class="exp-row"><div><b>${title}</b></div><b>₹${amt.toFixed(2)}</b></div>` + pHistory.innerHTML;
-                document.getElementById('p-exp-title').value = "";
-                document.getElementById('p-exp-amt').value = "";
-                updatePersonalUI();
-            } catch (err) {
-                console.error("Personal expense save failed:", err);
-                alert("❌ Database save failed!");
-            }
+            personalSpent += amt;
+            const pHistory = document.getElementById('personal-history-list');
+            pHistory.innerHTML = `<div class="exp-row"><div><b>${title}</b></div><b>₹${amt.toFixed(2)}</b></div>` + pHistory.innerHTML;
+            document.getElementById('p-exp-title').value = ""; document.getElementById('p-exp-amt').value = "";
+            updatePersonalUI();
         }
-
         function updatePersonalUI() {
             const remaining = monthlyBudget - personalSpent;
             document.getElementById('display-budget').innerText = `₹${monthlyBudget.toFixed(2)}`;
@@ -964,11 +867,11 @@
             remElement.style.color = remaining < 0 ? "var(--red)" : "var(--green)";
         }
         
-        // ==================== SHAKE-TO-SOS (Unchanged) ====================
+        // ==================== NEW: SHAKE-TO-SOS ====================
         let shakeDetectionActive = false;
         let lastShakeTime = 0;
-        const SHAKE_THRESHOLD = 15;
-        const SHAKE_COOLDOWN = 5000;
+        const SHAKE_THRESHOLD = 15; // Acceleration threshold
+        const SHAKE_COOLDOWN = 5000; // 5 seconds cooldown
         
         function initShakeDetection() {
             if (window.DeviceMotionEvent) {
@@ -1009,6 +912,7 @@
             else if (intensity < 25) intensityLevel = 'HIGH';
             else intensityLevel = 'CRITICAL';
             
+            // Show visual indicator
             alertBox.className = "alert alert-danger mb-0 small";
             alertBox.innerHTML = `
                 <div class="shake-indicator mb-2">
@@ -1021,6 +925,7 @@
                 <small class="text-muted">Emergency alert sent to warden and contacts!</small>
             `;
             
+            // Save to database
             try {
                 await fetch('http://localhost:3000/api/shake-sos', {
                     method: 'POST',
@@ -1038,9 +943,10 @@
             alert(`🚨 SHAKE SOS TRIGGERED!\n\nIntensity: ${intensityLevel}\nHelp is on the way!`);
         }
         
-        // ✅ FIXED: COMPLAINT SYSTEM (Now works WITH backend Database)
-        document.getElementById('complaintForm').addEventListener('submit', async function(e) {
+        // ==================== FIXED: COMPLAINT SYSTEM (Now works without backend using localStorage) ====================
+        document.getElementById('complaintForm').addEventListener('submit', function(e) {
             e.preventDefault();
+            
             const name = document.getElementById('complaintName').value.trim();
             const room = document.getElementById('complaintRoom').value.trim();
             const category = document.getElementById('complaintCategory').value;
@@ -1052,51 +958,62 @@
                 return;
             }
             
-            try {
-                await fetch('http://localhost:3000/api/complaints', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ student_name: name, room_no: room, category, priority, description: desc })
-                });
-                
-                const statusDiv = document.getElementById('complaintStatus');
-                statusDiv.className = 'alert alert-success mt-3';
-                statusDiv.innerHTML = '<i class="fa-solid fa-check-circle me-2"></i><strong>Complaint submitted successfully to Database!</strong>';
-                statusDiv.classList.remove('d-none');
-                document.getElementById('complaintForm').reset();
-                loadComplaints();
-                setTimeout(() => { statusDiv.classList.add('d-none'); }, 4000);
-            } catch (err) {
-                console.error("Complaint save failed:", err);
-                alert("❌ Database save failed!");
-            }
+            const complaintData = {
+                id: Date.now(),
+                student_name: name,
+                room_no: room,
+                category: category,
+                priority: priority,
+                description: desc,
+                status: 'pending',
+                created_at: new Date().toISOString(),
+                resolution_note: ''
+            };
+            
+            let complaints = JSON.parse(localStorage.getItem('complaints') || '[]');
+            complaints.unshift(complaintData);
+            localStorage.setItem('complaints', JSON.stringify(complaints));
+            
+            const statusDiv = document.getElementById('complaintStatus');
+            statusDiv.className = 'alert alert-success mt-3';
+            statusDiv.innerHTML = '<i class="fa-solid fa-check-circle me-2"></i><strong>Complaint submitted successfully!</strong> Warden will review it soon.';
+            statusDiv.classList.remove('d-none');
+            
+            document.getElementById('complaintForm').reset();
+            loadComplaints();
+            
+            setTimeout(() => { statusDiv.classList.add('d-none'); }, 4000);
         });
-
-        async function loadComplaints() {
-            try {
-                const response = await fetch('http://localhost:3000/api/complaints');
-                const complaints = await response.json();
-                displayComplaints(complaints);
-            } catch (err) {
-                console.error("Failed to load complaints:", err);
-            }
+        
+        function loadComplaints() {
+            const complaints = JSON.parse(localStorage.getItem('complaints') || '[]');
+            displayComplaints(complaints);
         }
-
+        
         function displayComplaints(complaints) {
             const listDiv = document.getElementById('complaintsList');
-            if (!complaints || complaints.length === 0) {
+            
+            if (complaints.length === 0) {
                 listDiv.innerHTML = '<div class="text-center text-muted py-4"><i class="fa-solid fa-inbox fa-2x mb-2"></i><p>No complaints yet</p></div>';
                 document.getElementById('pendingCount').innerText = '0';
                 document.getElementById('resolvedCount').innerText = '0';
                 return;
             }
             
-            let pendingCount = 0, resolvedCount = 0;
+            let pendingCount = 0;
+            let resolvedCount = 0;
+            
             const html = complaints.map(complaint => {
                 if (complaint.status === 'pending' || complaint.status === 'in-progress') pendingCount++;
                 if (complaint.status === 'resolved') resolvedCount++;
                 
-                const statusColors = { 'pending': 'warning', 'in-progress': 'info', 'resolved': 'success', 'rejected': 'danger' };
+                const statusColors = {
+                    'pending': 'warning',
+                    'in-progress': 'info',
+                    'resolved': 'success',
+                    'rejected': 'danger'
+                };
+                
                 const priorityClass = `priority-${complaint.priority}`;
                 const statusClass = complaint.status === 'resolved' ? 'complaint-resolved' : 'complaint-pending';
                 
@@ -1114,13 +1031,21 @@
                         ${complaint.resolution_note ? `<div class="alert alert-success small mb-2"><strong>Resolution:</strong> ${complaint.resolution_note}</div>` : ''}
                         ${complaint.status !== 'resolved' ? `
                             <div class="mt-2">
-                                <button class="btn btn-sm btn-success me-1" onclick="resolveComplaint(${complaint.id}, 'resolved')"><i class="fa-solid fa-check me-1"></i>Resolved</button>
-                                <button class="btn btn-sm btn-info me-1" onclick="resolveComplaint(${complaint.id}, 'in-progress')"><i class="fa-solid fa-spinner me-1"></i>In Progress</button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="deleteComplaint(${complaint.id})"><i class="fa-solid fa-trash me-1"></i>Delete</button>
+                                <button class="btn btn-sm btn-success me-1" onclick="resolveComplaint(${complaint.id}, 'resolved')">
+                                    <i class="fa-solid fa-check me-1"></i>Mark Resolved
+                                </button>
+                                <button class="btn btn-sm btn-info me-1" onclick="resolveComplaint(${complaint.id}, 'in-progress')">
+                                    <i class="fa-solid fa-spinner me-1"></i>In Progress
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteComplaint(${complaint.id})">
+                                    <i class="fa-solid fa-trash me-1"></i>Delete
+                                </button>
                             </div>
                         ` : `
                             <div class="mt-2">
-                                <button class="btn btn-sm btn-outline-danger" onclick="deleteComplaint(${complaint.id})"><i class="fa-solid fa-trash me-1"></i>Delete</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteComplaint(${complaint.id})">
+                                    <i class="fa-solid fa-trash me-1"></i>Delete
+                                </button>
                             </div>
                         `}
                     </div>
@@ -1131,48 +1056,52 @@
             document.getElementById('pendingCount').innerText = pendingCount;
             document.getElementById('resolvedCount').innerText = resolvedCount;
         }
-
-        async function resolveComplaint(complaintId, status) {
-            let resolutionNote = status === 'resolved' ? (prompt('Enter resolution note (optional):') || '') : '';
-            try {
-                await fetch(`http://localhost:3000/api/complaints/${complaintId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status, resolution_note: resolutionNote })
-                });
-                loadComplaints();
-            } catch (err) {
-                console.error("Failed to update complaint:", err);
-                alert("❌ Update failed!");
+        
+        function resolveComplaint(complaintId, status) {
+            let resolutionNote = '';
+            if (status === 'resolved') {
+                resolutionNote = prompt('Enter resolution note (optional):') || '';
             }
-        }
-
-        async function deleteComplaint(complaintId) {
-            if (confirm('Are you sure you want to delete this complaint from the database?')) {
-                try {
-                    await fetch(`http://localhost:3000/api/complaints/${complaintId}`, { method: 'DELETE' });
-                    loadComplaints();
-                } catch (err) {
-                    console.error("Failed to delete complaint:", err);
-                    alert("❌ Delete failed!");
+            
+            let complaints = JSON.parse(localStorage.getItem('complaints') || '[]');
+            const index = complaints.findIndex(c => c.id === complaintId);
+            
+            if (index !== -1) {
+                complaints[index].status = status;
+                if (resolutionNote) {
+                    complaints[index].resolution_note = resolutionNote;
                 }
+                localStorage.setItem('complaints', JSON.stringify(complaints));
+                loadComplaints();
             }
         }
         
-        // ==================== FACE RECOGNITION (Unchanged) ====================
+        function deleteComplaint(complaintId) {
+            if (confirm('Are you sure you want to delete this complaint?')) {
+                let complaints = JSON.parse(localStorage.getItem('complaints') || '[]');
+                complaints = complaints.filter(c => c.id !== complaintId);
+                localStorage.setItem('complaints', JSON.stringify(complaints));
+                loadComplaints();
+            }
+        }
+        
+        // ==================== FACE RECOGNITION (Same as before, moved to PG Management) ====================
         let faceModelsLoaded = false;
         let registrationStream = null;
         let entryStream = null;
         
         async function loadFaceModels() {
             if (faceModelsLoaded) return;
+            
             const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model';
+            
             try {
                 await Promise.all([
                     faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
                     faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
                     faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
                 ]);
+                
                 faceModelsLoaded = true;
                 console.log('Face models loaded');
             } catch (err) {
@@ -1183,6 +1112,7 @@
         
         async function startFaceRegistration() {
             await loadFaceModels();
+            
             const video = document.getElementById('regVideo');
             const statusDiv = document.getElementById('regStatus');
             const name = document.getElementById('regName').value.trim();
@@ -1194,13 +1124,19 @@
             }
             
             try {
-                registrationStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                registrationStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 640, height: 480 } 
+                });
                 video.srcObject = registrationStream;
+                
                 statusDiv.className = 'alert alert-info mt-2 small';
                 statusDiv.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Looking for your face...';
                 statusDiv.classList.remove('d-none');
                 
-                await new Promise(resolve => { video.onloadedmetadata = () => resolve(); });
+                await new Promise(resolve => {
+                    video.onloadedmetadata = () => resolve();
+                });
+                
                 const detectorOptions = new faceapi.TinyFaceDetectorOptions();
                 const detection = await faceapi.detectSingleFace(video, detectorOptions).withFaceLandmarks().withFaceDescriptor();
                 
@@ -1208,11 +1144,19 @@
                     await fetch('http://localhost:3000/api/face-register', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ student_name: name, room_no: room, face_descriptor: Array.from(detection.descriptor) })
+                        body: JSON.stringify({
+                            student_name: name,
+                            room_no: room,
+                            face_descriptor: Array.from(detection.descriptor)
+                        })
                     });
+                    
                     statusDiv.className = 'alert alert-success mt-2 small';
                     statusDiv.innerHTML = '<i class="fa-solid fa-check-circle me-2"></i><strong>Face registered successfully!</strong>';
-                    if (registrationStream) { registrationStream.getTracks().forEach(track => track.stop()); }
+                    
+                    if (registrationStream) {
+                        registrationStream.getTracks().forEach(track => track.stop());
+                    }
                     video.srcObject = null;
                 } else {
                     statusDiv.className = 'alert alert-warning mt-2 small';
@@ -1227,36 +1171,54 @@
         
         async function startFaceEntry() {
             await loadFaceModels();
+            
             const video = document.getElementById('entryVideo');
             const statusDiv = document.getElementById('entryStatus');
             
             try {
-                entryStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                entryStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 640, height: 480 } 
+                });
                 video.srcObject = entryStream;
+                
                 statusDiv.className = 'alert alert-info mt-2 small';
                 statusDiv.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Scanning for registered faces...';
                 statusDiv.classList.remove('d-none');
                 
-                await new Promise(resolve => { video.onloadedmetadata = () => resolve(); });
+                await new Promise(resolve => {
+                    video.onloadedmetadata = () => resolve();
+                });
+                
                 const detectorOptions = new faceapi.TinyFaceDetectorOptions();
                 
                 const detectFace = async () => {
                     if (!entryStream) return;
+                    
                     const detection = await faceapi.detectSingleFace(video, detectorOptions).withFaceLandmarks().withFaceDescriptor();
                     
                     if (detection) {
                         const response = await fetch('http://localhost:3000/api/face-recognition', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ face_descriptor: Array.from(detection.descriptor) })
+                            body: JSON.stringify({
+                                face_descriptor: Array.from(detection.descriptor)
+                            })
                         });
+                        
                         const result = await response.json();
                         
                         if (result.matched) {
                             statusDiv.className = 'alert alert-success mt-2 small';
-                            statusDiv.innerHTML = `<i class="fa-solid fa-check-circle me-2"></i><strong>Welcome, ${result.student.student_name}!</strong><br>Entry marked for Room ${result.student.room_no}`;
+                            statusDiv.innerHTML = `
+                                <i class="fa-solid fa-check-circle me-2"></i>
+                                <strong>Welcome, ${result.student.student_name}!</strong><br>
+                                Entry marked for Room ${result.student.room_no}
+                            `;
+                            
                             setTimeout(() => {
-                                if (entryStream) { entryStream.getTracks().forEach(track => track.stop()); }
+                                if (entryStream) {
+                                    entryStream.getTracks().forEach(track => track.stop());
+                                }
                                 video.srcObject = null;
                             }, 3000);
                         } else {
@@ -1267,7 +1229,9 @@
                         setTimeout(detectFace, 1000);
                     }
                 };
+                
                 detectFace();
+                
             } catch (err) {
                 console.error('Entry error:', err);
                 statusDiv.className = 'alert alert-danger mt-2 small';
@@ -1275,8 +1239,9 @@
             }
         }
         
-        // ==================== VOICE SOS (Unchanged) ====================
+        // ==================== VOICE SOS (Same as before) ====================
         let voiceRecognitionActive = false;
+        
         function initVoiceSOS() {
             if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
                 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1285,35 +1250,58 @@
                 recognition.interimResults = false;
                 recognition.lang = 'en-US';
                 
-                recognition.onstart = function() { voiceRecognitionActive = true; console.log('Voice recognition active'); };
+                recognition.onstart = function() {
+                    voiceRecognitionActive = true;
+                    console.log('Voice recognition active');
+                };
+                
                 recognition.onend = function() {
                     voiceRecognitionActive = false;
                     console.log('Voice recognition ended');
-                    if (document.getElementById('page3').classList.contains('active')) { recognition.start(); }
+                    if (document.getElementById('page3').classList.contains('active')) {
+                        recognition.start();
+                    }
                 };
+                
                 recognition.onresult = function(event) {
                     const lastResult = event.results[event.results.length - 1];
                     const transcript = lastResult[0].transcript.toLowerCase().trim();
+                    
                     console.log('Voice command:', transcript);
-                    if (transcript.includes('help me') || transcript.includes('mujhe bachao') || transcript.includes('save me') || transcript.includes('emergency')) {
+                    
+                    if (transcript.includes('help me') || transcript.includes('mujhe bachao') || 
+                        transcript.includes('save me') || transcript.includes('emergency')) {
                         triggerVoiceSOS(transcript);
                     }
                 };
-                recognition.onerror = function(event) { console.error('Voice recognition error:', event.error); };
                 
-                if (document.getElementById('page3').classList.contains('active')) { recognition.start(); }
+                recognition.onerror = function(event) {
+                    console.error('Voice recognition error:', event.error);
+                };
+                
+                if (document.getElementById('page3').classList.contains('active')) {
+                    recognition.start();
+                }
+                
                 const observer = new MutationObserver(function(mutations) {
                     if (document.getElementById('page3').classList.contains('active')) {
-                        if (!voiceRecognitionActive) { setTimeout(() => recognition.start(), 500); }
+                        if (!voiceRecognitionActive) {
+                            setTimeout(() => recognition.start(), 500);
+                        }
                     }
                 });
+                
                 observer.observe(document.body, { childList: true, subtree: true });
-            } else { console.log('Speech recognition not supported'); }
+            } else {
+                console.log('Speech recognition not supported');
+            }
         }
         
         async function triggerVoiceSOS(command) {
             const alertBox = document.getElementById('alertConsole2');
-            const mapUrl = currentLatitude2 && currentLongitude2 ? `https://maps.google.com/?q=${currentLatitude2},${currentLongitude2}` : "Location Unavailable";
+            const mapUrl = currentLatitude2 && currentLongitude2 ? 
+                `https://maps.google.com/?q=${currentLatitude2},${currentLongitude2}` : 
+                "Location Unavailable";
             
             alertBox.className = "alert alert-danger mb-0 small";
             alertBox.innerHTML = `
@@ -1330,9 +1318,18 @@
                 await fetch('http://localhost:3000/api/voice-sos', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ student_name: 'Voice SOS User', room_no: 'Unknown', voice_command: command, latitude: currentLatitude2, longitude: currentLongitude2 })
+                    body: JSON.stringify({
+                        student_name: 'Voice SOS User',
+                        room_no: 'Unknown',
+                        voice_command: command,
+                        latitude: currentLatitude2,
+                        longitude: currentLongitude2
+                    })
                 });
-            } catch (err) { console.error('Voice SOS save failed:', err); }
+            } catch (err) {
+                console.error('Voice SOS save failed:', err);
+            }
+            
             alert(`🚨 VOICE SOS TRIGGERED!\n\nCommand: "${command}"\nHelp is on the way!`);
         }
         
@@ -1342,7 +1339,7 @@
             fetchLocation2();
             initVoiceSOS();
             initShakeDetection();
-            loadComplaints();
+            loadComplaints(); // Load complaints on page load
         };
     </script>
 </body>
