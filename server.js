@@ -5,8 +5,8 @@ const bodyParser = require('body-parser');
 
 const app = express();
 app.use(cors());
-app.use(bodyParser.json({ limit: '50mb' }));
-
+app.use(bodyParser.json({ limit: '100mb' }));
+app.use(express.static('Public'));
 // 🔧 MySQL Connection - APNA PASSWORD YAHAN DALO
 const db = mysql.createPool({
     host: 'localhost',
