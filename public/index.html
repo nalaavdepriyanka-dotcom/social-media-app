@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,12 +7,17 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.min.js"></script>
+    
     <style>
         :root { --primary-red: #d90429; --dark-red: #ef233c; --light-bg: #fdfbfb; --dark-text: #2b2d42; --card-shadow: 0 10px 40px rgba(217, 4, 41, 0.06); --card-hover-shadow: 0 20px 50px rgba(217, 4, 41, 0.12); --sos-red: #d90429; --primary: #d63031; --primary-hover: #b22222; --card-bg: #ffffff; --text: #2d3436; --green: #00b894; --red: #d63031; --glass-bg: rgba(255, 255, 255, 0.85); --glass-border: rgba(255, 255, 255, 0.6); }
         body { background: radial-gradient(circle at 10% 20%, rgba(217, 4, 41, 0.03) 0%, transparent 25%), radial-gradient(circle at 90% 80%, rgba(217, 4, 41, 0.03) 0%, transparent 25%), #fdfbfb; background-attachment: fixed; color: var(--dark-text); font-family: 'Plus Jakarta Sans', sans-serif; min-height: 100vh; }
         ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-track { background: #f1f1f1; } ::-webkit-scrollbar-thumb { background: #d90429; border-radius: 10px; } ::-webkit-scrollbar-thumb:hover { background: #ef233c; }
+        
         .dashboard-nav { background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 4px 20px rgba(0,0,0,0.05); padding: 15px 0; margin-bottom: 30px; position: sticky; top: 0; z-index: 1000; border-bottom: 1px solid var(--glass-border); }
-        .nav-btn { border: 1px solid transparent; background: rgba(248, 249, 250, 0.8); color: #495057; font-weight: 600; padding: 12px 24px; border-radius: 50px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); margin: 0 5px; font-size: 0.95rem; }
+        .dashboard-nav .d-flex { overflow-x: auto; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; padding-bottom: 5px; }
+        .nav-btn { border: 1px solid transparent; background: rgba(248, 249, 250, 0.8); color: #495057; font-weight: 600; padding: 12px 24px; border-radius: 50px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); margin: 0 5px; font-size: 0.95rem; white-space: nowrap; flex-shrink: 0; }
         .nav-btn:hover { background: rgba(217, 4, 41, 0.1); color: var(--primary-red); transform: translateY(-2px); }
         .nav-btn.active { background: linear-gradient(135deg, var(--primary-red), var(--dark-red)); color: #ffffff; border-color: transparent; box-shadow: 0 4px 15px rgba(217, 4, 41, 0.3); transform: translateY(-2px); }
         .page-section { display: none; animation: fadeInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1); } .page-section.active { display: block; }
@@ -71,6 +75,20 @@
         .warden-actions { background: linear-gradient(135deg, #fff5f5 0%, #ffffff 100%); border: 1px dashed #d90429 !important; border-radius: 12px; }
         .table { border-radius: 12px; overflow: hidden; } .table thead { background: linear-gradient(135deg, #f8f9fa, #e9ecef); } .table th { font-weight: 700; color: #495057; border-bottom: 2px solid #dee2e6; }
         .alert { border-radius: 12px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .video-container { position: relative; width: 100%; max-width: 640px; margin: 20px auto; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        #video, #canvas { width: 100%; }
+        .voice-indicator { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--primary-red); color: white; border-radius: 50px; font-weight: 600; animation: voicePulse 1.5s infinite; }
+        @keyframes voicePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        .voice-active { background: var(--green) !important; }
+        .shake-indicator { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: #ff6b6b; color: white; border-radius: 50px; font-weight: 700; animation: shakeAlert 0.5s infinite; }
+        @keyframes shakeAlert { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } }
+        .complaint-card { border-left: 4px solid var(--primary-red); margin-bottom: 15px; }
+        .complaint-pending { border-left-color: #ffc107; }
+        .complaint-resolved { border-left-color: #00b894; opacity: 0.7; }
+        .priority-urgent { border-left-width: 6px; border-left-color: #d63031 !important; }
+        .priority-high { border-left-color: #fd79a8; }
+        .priority-normal { border-left-color: #0984e3; }
+        .priority-low { border-left-color: #00b894; }
     </style>
 </head>
 <body>
@@ -81,17 +99,18 @@
                 <button class="nav-btn" onclick="showPage('page2', this)"><i class="fa-solid fa-shield-halved me-1"></i> PG Management</button>
                 <button class="nav-btn" onclick="showPage('page3', this)"><i class="fa-solid fa-triangle-exclamation me-1"></i> Emergency SOS</button>
                 <button class="nav-btn" onclick="showPage('page4', this)"><i class="fa-solid fa-wallet me-1"></i> Expense Tracker</button>
+                <button class="nav-btn" onclick="showPage('page5', this)"><i class="fa-solid fa-clipboard-list me-1"></i> Complaints</button>
             </div>
         </div>
     </nav>
 
     <div class="container pb-5">
-        <!-- PAGE 1 -->
+        <!-- PAGE 1: Bed Tracker -->
         <div id="page1" class="page-section active">
             <div class="custom-card p-4">
                 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <div>
-                        <h4 class="section-title m-0">🛏️ <span id="displayPgName">Sunshine Residency PG</span> - Live Bed Tracker</h4>
+                        <h4 class="section-title m-0"> <span id="displayPgName">Sunshine Residency PG</span> - Live Bed Tracker</h4>
                         <p class="text-muted small mb-0">Real-time status updated directly by PG warden/owner.</p>
                     </div>
                     <div class="form-check form-switch bg-light p-2 rounded border">
@@ -126,7 +145,7 @@
             </div>
         </div>
 
-        <!-- PAGE 2 -->
+        <!-- PAGE 2: PG Management -->
         <div id="page2" class="page-section">
             <div class="row g-4">
                 <div class="col-md-5">
@@ -162,6 +181,7 @@
                 <div class="col-md-7">
                     <ul class="nav nav-pills mb-3" id="pgTabs" role="tablist">
                         <li class="nav-item" role="presentation"><button class="nav-link active btn-sm" id="gatepass-tab" data-bs-toggle="pill" data-bs-target="#gatepass" type="button"><i class="fa-solid fa-id-card me-1"></i> Quick Entry/Exit</button></li>
+                        <li class="nav-item" role="presentation"><button class="nav-link btn-sm" id="faceentry-tab" data-bs-toggle="pill" data-bs-target="#faceentry" type="button"><i class="fa-solid fa-camera me-1"></i> Face Entry</button></li>
                         <li class="nav-item" role="presentation"><button class="nav-link btn-sm" id="late-tab" data-bs-toggle="pill" data-bs-target="#late" type="button"><i class="fa-solid fa-clock me-1"></i> Late Arrival Alert</button></li>
                         <li class="nav-item" role="presentation"><button class="nav-link btn-sm" id="contacts-tab" data-bs-toggle="pill" data-bs-target="#contacts" type="button"><i class="fa-solid fa-address-book me-1"></i> Contacts</button></li>
                     </ul>
@@ -181,11 +201,52 @@
                                 <div class="table-responsive" style="max-height: 180px; overflow-y: auto;">
                                     <table class="table table-sm table-hover border small">
                                         <thead class="table-light"><tr><th>Name</th><th>Room</th><th>Status</th><th>Time Stamp</th></tr></thead>
-                                        <tbody id="gatepassLogs"><tr><td>Student Demo</td><td>201</td><td><span class="badge bg-success">IN</span></td><td>08:15 PM</td></tr></tbody>
+                                        <tbody id="gatepassLogs"></tbody>
                                     </table>
                                 </div>
                             </div>
                         </div>
+                        
+                        <div class="tab-pane fade" id="faceentry" role="tabpanel">
+                            <div class="custom-card p-4">
+                                <h6 class="fw-bold text-danger mb-2"><i class="fa-solid fa-camera me-2"></i>Face Recognition Entry</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="alert alert-info small">
+                                            <i class="fa-solid fa-info-circle me-1"></i> <strong>Step 1:</strong> Register your face first
+                                        </div>
+                                        <form id="faceRegisterForm">
+                                            <div class="mb-2">
+                                                <input type="text" id="regName" class="form-control form-control-sm" placeholder="Your Name" required>
+                                            </div>
+                                            <div class="mb-2">
+                                                <input type="text" id="regRoom" class="form-control form-control-sm" placeholder="Room No" required>
+                                            </div>
+                                            <div class="video-container" style="max-height: 200px;">
+                                                <video id="regVideo" autoplay playsinline muted></video>
+                                            </div>
+                                            <button type="button" class="btn btn-danger btn-sm w-100" onclick="startFaceRegistration()">
+                                                <i class="fa-solid fa-camera me-1"></i>Register Face
+                                            </button>
+                                        </form>
+                                        <div id="regStatus" class="alert mt-2 d-none small"></div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="alert alert-success small">
+                                            <i class="fa-solid fa-check-circle me-1"></i> <strong>Step 2:</strong> Auto Entry
+                                        </div>
+                                        <div class="video-container" style="max-height: 200px;">
+                                            <video id="entryVideo" autoplay playsinline muted></video>
+                                        </div>
+                                        <button type="button" class="btn btn-success btn-sm w-100 mt-2" onclick="startFaceEntry()">
+                                            <i class="fa-solid fa-play me-1"></i>Start Auto Entry
+                                        </button>
+                                        <div id="entryStatus" class="alert mt-2 d-none small"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <div class="tab-pane fade" id="late" role="tabpanel">
                             <div class="custom-card p-4">
                                 <h6 class="fw-bold text-warning text-dark mb-2"><i class="fa-solid fa-clock me-2 text-warning"></i>Inform Late Arrival to Warden</h6>
@@ -223,13 +284,17 @@
             </div>
         </div>
 
-        <!-- PAGE 3 -->
+        <!-- PAGE 3: Emergency SOS -->
         <div id="page3" class="page-section">
             <div class="row g-4">
                 <div class="col-md-6">
                     <div class="custom-card p-4 text-center h-100 d-flex flex-column justify-content-between">
                         <div>
-                            <h5 class="fw-bold text-dark">Emergency Panic Button (Emergency SOS)</h5>
+                            <h5 class="fw-bold text-dark">Emergency Panic Button</h5>
+                            <div class="alert alert-warning small mt-2">
+                                <i class="fa-solid fa-microphone me-1"></i> <strong>VOICE:</strong> Say <b>"Help Me"</b> or <b>"Mujhe Bachao"</b><br>
+                                <i class="fa-solid fa-mobile-alt me-1"></i> <strong>SHAKE:</strong> Shake your phone vigorously
+                            </div>
                             <div class="sos-btn-wrapper">
                                 <div id="sosBtn2" class="sos-button sos-pulse">
                                     <i class="fa-solid fa-triangle-exclamation fs-1 mb-1"></i>
@@ -278,12 +343,12 @@
             </div>
         </div>
 
-        <!-- PAGE 4 -->
+        <!-- PAGE 4: Expense Tracker -->
         <div id="page4" class="page-section">
             <div class="expense-container">
                 <div id="sec-setup" class="expense-card">
                     <h2 style="color: var(--primary);">🏠 Room Expense Setup</h2>
-                    <p style="font-size: 12px; color: #636e72; margin-bottom: 12px;">Member name aur unka phone number add karein:</p>
+                    <p style="font-size: 12px; color: #636e72; margin-bottom: 12px;">Enter member names and their phone numbers:</p>
                     <div id="members-container">
                         <div class="member-input-row"><input type="text" class="m-name" placeholder="Name"><input type="tel" class="m-phone" placeholder="Phone Number"></div>
                         <div class="member-input-row"><input type="text" class="m-name" placeholder="Name"><input type="tel" class="m-phone" placeholder="Phone Number"></div>
@@ -294,7 +359,7 @@
                 <div id="sec-dash" class="hidden">
                     <div class="nav-tabs-exp">
                         <div id="tab-room" class="nav-tab-exp active" onclick="switchTab('room')">🏠 Room Expenses</div>
-                        <div id="tab-personal" class="nav-tab-exp" onclick="switchTab('personal')">👤 Personal Budget</div>
+                        <div id="tab-personal" class="nav-tab-exp" onclick="switchTab('personal')"> Personal Budget</div>
                     </div>
                     <div id="page-room">
                         <div class="expense-card" style="border-top: 4px solid var(--primary);">
@@ -320,11 +385,11 @@
                             <div style="display: flex; justify-content: space-between; margin-top: 10px;">
                                 <div><small style="color: #636e72;">Total Budget</small><h3 id="display-budget">₹0.00</h3></div>
                                 <div><small style="color: #636e72;">Spent</small><h3 id="display-spent" style="color: var(--primary);">₹0.00</h3></div>
-                                <div><small style="color: #636e72;">Remaining</small><h3 id="display-remaining" style="color: var(--green);">₹0.00</h3></div>
+                                <div><small style="color: #636e72;">Remaining</small><h3 id="display-remaining" style="color: var(--green);">0.00</h3></div>
                             </div>
                         </div>
                         <div class="expense-card">
-                            <h3>🎯 Set Monthly Budget</h3>
+                            <h3> Set Monthly Budget</h3>
                             <label>Monthly Limit (₹)</label><input type="number" id="personal-budget-input" placeholder="e.g. 5000">
                             <button class="expense-btn" onclick="setPersonalBudget()" style="background: var(--green);">Set Budget</button>
                         </div>
@@ -339,10 +404,80 @@
                 </div>
             </div>
         </div>
+
+        <!-- PAGE 5: Complaints System -->
+        <div id="page5" class="page-section">
+            <div class="row g-4">
+                <div class="col-md-5">
+                    <div class="custom-card p-4">
+                        <h4 class="section-title mb-3">📝 Submit Complaint</h4>
+                        <p class="text-muted small">Report your issue. The warden will be notified immediately.</p>
+                        <form id="complaintForm" class="mt-3">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Your Name</label>
+                                <input type="text" id="complaintName" class="form-control" placeholder="Enter your name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Room Number</label>
+                                <input type="text" id="complaintRoom" class="form-control" placeholder="e.g. 201" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Category</label>
+                                <select id="complaintCategory" class="form-select" required>
+                                    <option value="">Select Category</option>
+                                    <option value="Plumbing">🚰 Plumbing (Water/Pipe)</option>
+                                    <option value="Electrical">💡 Electrical (Fan/Light)</option>
+                                    <option value="WiFi"> WiFi/Internet</option>
+                                    <option value="Cleaning">🧹 Cleaning</option>
+                                    <option value="Food">🍽️ Food Quality</option>
+                                    <option value="Other">📌 Other</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Priority</label>
+                                <select id="complaintPriority" class="form-select">
+                                    <option value="low"> Low - Can wait</option>
+                                    <option value="normal" selected> Normal</option>
+                                    <option value="high"> High - Urgent</option>
+                                    <option value="urgent"> URGENT - Immediate</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Description</label>
+                                <textarea id="complaintDesc" class="form-control" rows="3" placeholder="Describe your problem in detail..." required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-danger w-100">
+                                <i class="fa-solid fa-paper-plane me-2"></i>Submit Complaint
+                            </button>
+                        </form>
+                        <div id="complaintStatus" class="alert mt-3 d-none"></div>
+                    </div>
+                </div>
+                <div class="col-md-7">
+                    <div class="custom-card p-4">
+                        <h4 class="section-title mb-3">📋 Complaint Dashboard</h4>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="badge bg-warning text-dark">Pending: <span id="pendingCount">0</span></span>
+                            <span class="badge bg-success">Resolved: <span id="resolvedCount">0</span></span>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="loadComplaints()">
+                                <i class="fa-solid fa-refresh me-1"></i>Refresh
+                            </button>
+                        </div>
+                        <div id="complaintsList" class="mt-3">
+                            <div class="text-center text-muted py-4">
+                                <i class="fa-solid fa-spinner fa-spin fa-2x mb-2"></i>
+                                <p>Loading complaints...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // ==================== ALL EXISTING FUNCTIONS ====================
         function showPage(pageId, btnElement) {
             document.querySelectorAll('.page-section').forEach(page => page.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
@@ -389,7 +524,7 @@
             const name = bedCard.querySelector('.input-roommate-name')?.value.trim() || 'Vacant';
             const degree = bedCard.querySelector('.input-roommate-degree')?.value.trim() || '-';
 
-            fetch('http://localhost:3000/api/beds/update', {
+            fetch('/api/beds/update', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ room_no: rNo, bed_label: bLabel, status: newStatus, name, degree })
             }).catch(err => console.warn("DB update failed, but UI updated locally", err));
@@ -444,7 +579,7 @@
             }
 
             try {
-                await fetch('http://localhost:3000/api/rooms', {
+                await fetch('/api/rooms', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ room_no: roomNo, location, sharing, image_url: imageUrl })
                 });
@@ -505,7 +640,26 @@
             document.getElementById('addRoomForm').reset();
         });
 
-        let currentLatitude = null, currentLongitude = null, selectedPhotoName = null;
+        // ===== CHANGE 1: Photo ke liye naye variables + compression function =====
+        let currentLatitude = null, currentLongitude = null, selectedPhotoName = null, selectedPhotoData = null;
+        
+        function fileToCompressedDataURL(file, callback) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const scale = Math.min(1, 600 / img.width);
+                    canvas.width = Math.max(1, img.width * scale);
+                    canvas.height = Math.max(1, img.height * scale);
+                    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                    callback(canvas.toDataURL('image/jpeg', 0.7));
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+        
         const imageInput = document.getElementById('imageInput');
         const photoPreviewContainer = document.getElementById('photoPreviewContainer');
         const photoPreview = document.getElementById('photoPreview');
@@ -513,12 +667,13 @@
             const file = e.target.files[0];
             if (file) {
                 selectedPhotoName = file.name;
+                fileToCompressedDataURL(file, data => { selectedPhotoData = data; });
                 const reader = new FileReader();
                 reader.onload = function(event) { photoPreview.src = event.target.result; photoPreviewContainer.style.display = "block"; };
                 reader.readAsDataURL(file);
             }
         });
-        function removePhoto() { imageInput.value = ""; selectedPhotoName = null; photoPreview.src = ""; photoPreviewContainer.style.display = "none"; }
+        function removePhoto() { imageInput.value = ""; selectedPhotoName = null; selectedPhotoData = null; photoPreview.src = ""; photoPreviewContainer.style.display = "none"; }
         function fetchLocation() {
             const locationText = document.getElementById('locationText');
             if ("geolocation" in navigator) {
@@ -535,8 +690,34 @@
             consoleBox.className = "alert alert-danger mb-0 small";
             consoleBox.innerHTML = `<strong class="text-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i> SOS Alert Generated!</strong><br><strong>Message:</strong> Emergency Alert Sent! Location: ${mapUrl}${photoStatus}<br><small class="text-muted">Notified Warden & Police.</small>`;
             alert("🚨 EMERGENCY SOS SENT!");
+            
+            fetch('/api/manual-sos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    latitude: currentLatitude,
+                    longitude: currentLongitude,
+                    photo_name: selectedPhotoName,
+                    photo_data: selectedPhotoData
+                })
+            }).catch(err => console.error('Manual SOS save failed:', err));
         });
-        document.getElementById('entryForm').addEventListener('submit', function(e) {
+        
+        async function loadEntryLogs() {
+            try {
+                const response = await fetch('/api/entry-log');
+                const logs = await response.json();
+                const tbody = document.getElementById('gatepassLogs');
+                tbody.innerHTML = '';
+                logs.forEach(log => {
+                    const time = new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const badgeClass = log.entry_type === 'IN' ? 'bg-success' : 'bg-warning text-dark';
+                    tbody.innerHTML += `<tr><td>${log.student_name}</td><td>${log.room_no}</td><td><span class="badge ${badgeClass}">${log.entry_type}</span></td><td>${time}</td></tr>`;
+                });
+            } catch (err) { console.error('Error loading entry logs:', err); }
+        }
+        
+        document.getElementById('entryForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const name = document.getElementById('studentName').value.trim(); const room = document.getElementById('roomNo').value.trim();
             const type = document.getElementById('entryType').value; const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -546,17 +727,59 @@
             tbody.prepend(tr);
             const consoleBox = document.getElementById('alertConsole'); consoleBox.className = "alert alert-success mb-0 small";
             consoleBox.innerHTML = `<strong><i class="fa-solid fa-circle-check me-1"></i> Entry Marked:</strong> ${name} (Room ${room}) logged ${type} at ${timeNow}.`;
+            
+            await fetch('/api/entry-log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ student_name: name, room_no: room, entry_type: type })
+            }).catch(err => console.error('Entry log save failed:', err));
+            
             document.getElementById('entryForm').reset();
         });
-        document.getElementById('lateForm').addEventListener('submit', function(e) {
+        
+        document.getElementById('lateForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const name = document.getElementById('lateName').value.trim(); const time = document.getElementById('expectedTime').value;
             const reason = document.getElementById('lateReason').value.trim(); const alertBox = document.getElementById('lateAlertBox');
             alertBox.classList.remove('d-none');
             alertBox.innerHTML = `<i class="fa-solid fa-circle-info me-1"></i> <strong>Late Notification Sent:</strong> Warden portal updated. <br><strong>Details:</strong> ${name} will arrive by ${time} (Reason: ${reason}).`;
+            
+            await fetch('/api/late-arrival', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ student_name: name, expected_time: time, reason: reason })
+            }).catch(err => console.error('Late arrival save failed:', err));
+            
             document.getElementById('lateForm').reset();
         });
-        document.getElementById('contactForm').addEventListener('submit', function(e) {
+        
+        async function loadContacts() {
+            try {
+                const response = await fetch('/api/emergency-contact');
+                const contacts = await response.json();
+                const contactsList = document.getElementById('contactsList');
+                const contactsList2 = document.getElementById('contactsList2');
+                
+                contacts.forEach(contact => {
+                    const li = document.createElement('li');
+                    li.className = "list-group-item d-flex justify-content-between align-items-center px-0";
+                    li.innerHTML = `<div><strong>${contact.contact_name}:</strong> <span class="text-dark fw-bold ms-1"><i class="fa-solid fa-phone text-danger me-1"></i>${contact.phone_number}</span></div><button type="button" class="btn btn-sm btn-link text-danger p-0 text-decoration-none" onclick="deleteContact('${contact._id}')">Remove</button>`;
+                    contactsList.appendChild(li.cloneNode(true));
+                    contactsList2.appendChild(li);
+                });
+            } catch (err) { console.error('Error loading contacts:', err); }
+        }
+        
+        async function deleteContact(contactId) {
+            await fetch(`/api/emergency-contact/${contactId}`, { method: 'DELETE' })
+                .then(() => {
+                    document.getElementById('contactsList').innerHTML = '<li class="list-group-item d-flex justify-content-between align-items-center px-0"><div><strong>Police Control Room:</strong> <span class="text-dark fw-bold ms-1"><i class="fa-solid fa-phone text-danger me-1"></i>112 / 100</span></div><span class="badge bg-danger">Emergency</span></li>';
+                    document.getElementById('contactsList2').innerHTML = '<li class="list-group-item d-flex justify-content-between align-items-center px-0"><div><strong>Police Control Room:</strong> <span class="text-dark fw-bold ms-1"><i class="fa-solid fa-phone text-danger me-1"></i>112 / 100</span></div><span class="badge bg-danger">Emergency</span></li>';
+                    loadContacts();
+                });
+        }
+        
+        document.getElementById('contactForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const name = document.getElementById('contactName').value.trim(); const phone = document.getElementById('contactPhone').value.trim();
             if (name && phone) {
@@ -564,10 +787,17 @@
                 li.className = "list-group-item d-flex justify-content-between align-items-center px-0";
                 li.innerHTML = `<div><strong>${name}:</strong> <span class="text-dark fw-bold ms-1"><i class="fa-solid fa-phone text-danger me-1"></i>${phone}</span></div><button type="button" class="btn btn-sm btn-link text-danger p-0 text-decoration-none" onclick="this.parentElement.remove()">Remove</button>`;
                 contactsList.appendChild(li); document.getElementById('contactForm').reset();
+                
+                await fetch('/api/emergency-contact', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contact_name: name, phone_number: phone })
+                }).catch(err => console.error('Contact save failed:', err));
             }
         });
 
-        let currentLatitude2 = null, currentLongitude2 = null, selectedPhotoName2 = null;
+        // ===== CHANGE 2: Photo2 variables =====
+        let currentLatitude2 = null, currentLongitude2 = null, selectedPhotoName2 = null, selectedPhotoData2 = null;
         const imageInput2 = document.getElementById('imageInput2');
         const photoPreviewContainer2 = document.getElementById('photoPreviewContainer2');
         const photoPreview2 = document.getElementById('photoPreview2');
@@ -575,12 +805,13 @@
             const file = e.target.files[0];
             if (file) {
                 selectedPhotoName2 = file.name;
+                fileToCompressedDataURL(file, data => { selectedPhotoData2 = data; });
                 const reader = new FileReader();
                 reader.onload = function(event) { photoPreview2.src = event.target.result; photoPreviewContainer2.style.display = "block"; };
                 reader.readAsDataURL(file);
             }
         });
-        function removePhoto2() { imageInput2.value = ""; selectedPhotoName2 = null; photoPreview2.src = ""; photoPreviewContainer2.style.display = "none"; }
+        function removePhoto2() { imageInput2.value = ""; selectedPhotoName2 = null; selectedPhotoData2 = null; photoPreview2.src = ""; photoPreviewContainer2.style.display = "none"; }
         function fetchLocation2() {
             const locationText2 = document.getElementById('locationText2');
             if ("geolocation" in navigator) {
@@ -598,8 +829,20 @@
             consoleBox2.className = "alert alert-danger mb-0 small";
             consoleBox2.innerHTML = `<strong class="text-danger"><i class="fa-solid fa-circle-check me-1"></i> SOS Alert generated successfully!</strong><br><strong>Message:</strong> ${message2}${photoStatus2}<br><small class="text-muted">Location & photo details shared.</small>`;
             alert("🚨 EMERGENCY SOS SENT!");
+            
+            fetch('/api/manual-sos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    latitude: currentLatitude2,
+                    longitude: currentLongitude2,
+                    photo_name: selectedPhotoName2,
+                    photo_data: selectedPhotoData2
+                })
+            }).catch(err => console.error('Manual SOS save failed:', err));
         });
-        document.getElementById('contactForm2').addEventListener('submit', function(e) {
+        
+        document.getElementById('contactForm2').addEventListener('submit', async function(e) {
             e.preventDefault();
             const name = document.getElementById('contactName2').value.trim(); const phone = document.getElementById('contactPhone2').value.trim();
             if (name && phone) {
@@ -607,6 +850,12 @@
                 li.className = "list-group-item d-flex justify-content-between align-items-center px-0";
                 li.innerHTML = `<div><strong>${name}:</strong> <span class="text-dark fw-bold ms-1"><i class="fa-solid fa-phone text-danger me-1"></i>${phone}</span></div><button type="button" class="btn btn-sm btn-link text-danger p-0 text-decoration-none" onclick="this.parentElement.remove()">Remove</button>`;
                 contactsList2.appendChild(li); document.getElementById('contactForm2').reset();
+                
+                await fetch('/api/emergency-contact', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contact_name: name, phone_number: phone })
+                }).catch(err => console.error('Contact save failed:', err));
             }
         });
 
@@ -624,7 +873,7 @@
                 const name = input.value.trim(); const phone = phoneInputs[idx].value.trim();
                 if (name !== "") { roommates.push({ id: idx, name: name, phone: phone || "N/A", paid: 0, shouldPay: 0, balance: 0 }); }
             });
-            if (roommates.length < 2) return alert("Kam se kam 2 members ke naam enter karein.");
+            if (roommates.length < 2) return alert("Please enter names for at least 2 members.");
             const select = document.getElementById('exp-payer'); select.innerHTML = "";
             const splitContainer = document.getElementById('split-members-list'); splitContainer.innerHTML = "";
             roommates.forEach((r, idx) => {
@@ -643,8 +892,8 @@
             const checkedBoxes = document.querySelectorAll('.split-check:checked');
             const selectedIndices = Array.from(checkedBoxes).map(cb => parseInt(cb.value));
 
-            if (!title || isNaN(amt) || amt <= 0) return alert("Kripya sahi amount aur title daalein.");
-            if (selectedIndices.length === 0) return alert("Kam se kam 1 member ko select karein.");
+            if (!title || isNaN(amt) || amt <= 0) return alert("Please enter a valid amount and title.");
+            if (selectedIndices.length === 0) return alert("Please select at least 1 member.");
 
             const receiptInput = document.getElementById('exp-receipt');
             let receiptURL = "";
@@ -661,7 +910,7 @@
             history.innerHTML = `<div class="exp-row"><div><b>${title}</b><br><small style="color:#636e72">Paid by <b>${roommates[payerIdx].name}</b></small><br><small style="color:#d63031">Divided among: ${splitNames} (₹${splitAmt.toFixed(2)} each)</small>${receiptHTML}</div><b>₹${amt.toFixed(2)}</b></div>` + history.innerHTML;
 
             try {
-                await fetch('http://localhost:3000/api/expenses', {
+                await fetch('/api/expenses', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ title, amount: amt, payer_name: roommates[payerIdx].name, split_members: selectedIndices.map(i => roommates[i].name) })
                 });
@@ -687,7 +936,7 @@
             });
             const container = document.getElementById('settlements-list'); container.innerHTML = "";
             if (debtors.length === 0 && creditors.length === 0) {
-                container.innerHTML = `<small style="color:var(--green); font-weight:bold;">Sabka balance cleared hai! 🎉</small>`; return;
+                container.innerHTML = `<small style="color:var(--green); font-weight:bold;">All balances are cleared! 🎉</small>`; return;
             }
             let d = 0, c = 0;
             while (d < debtors.length && c < creditors.length) {
@@ -706,21 +955,36 @@
                 document.getElementById('tab-room').classList.remove('active'); document.getElementById('tab-personal').classList.add('active');
             }
         }
-        function setPersonalBudget() {
+        
+        async function setPersonalBudget() {
             const input = parseFloat(document.getElementById('personal-budget-input').value);
-            if (isNaN(input) || input <= 0) return alert("Sahi budget amount enter karein.");
+            if (isNaN(input) || input <= 0) return alert("Please enter a valid budget amount.");
             monthlyBudget = input; updatePersonalUI();
+            
+            await fetch('/api/personal-budget', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ budget_amount: input })
+            }).catch(err => console.error('Budget save failed:', err));
         }
-        function addPersonalExpense() {
+        
+        async function addPersonalExpense() {
             const title = document.getElementById('p-exp-title').value.trim();
             const amt = parseFloat(document.getElementById('p-exp-amt').value);
-            if (!title || isNaN(amt) || amt <= 0) return alert("Sahi title aur amount enter karein.");
+            if (!title || isNaN(amt) || amt <= 0) return alert("Please enter a valid title and amount.");
             personalSpent += amt;
             const pHistory = document.getElementById('personal-history-list');
             pHistory.innerHTML = `<div class="exp-row"><div><b>${title}</b></div><b>₹${amt.toFixed(2)}</b></div>` + pHistory.innerHTML;
             document.getElementById('p-exp-title').value = ""; document.getElementById('p-exp-amt').value = "";
             updatePersonalUI();
+            
+            await fetch('/api/personal-expense', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: title, amount: amt })
+            }).catch(err => console.error('Personal expense save failed:', err));
         }
+        
         function updatePersonalUI() {
             const remaining = monthlyBudget - personalSpent;
             document.getElementById('display-budget').innerText = `₹${monthlyBudget.toFixed(2)}`;
@@ -729,7 +993,587 @@
             remElement.innerText = `₹${remaining.toFixed(2)}`;
             remElement.style.color = remaining < 0 ? "var(--red)" : "var(--green)";
         }
-        window.onload = function() { fetchLocation(); fetchLocation2(); };
+        
+        // ==================== SHAKE-TO-SOS ====================
+        let shakeDetectionActive = false;
+        let lastShakeTime = 0;
+        const SHAKE_THRESHOLD = 15;
+        const SHAKE_COOLDOWN = 5000;
+        
+        function initShakeDetection() {
+            if (window.DeviceMotionEvent) {
+                window.addEventListener('devicemotion', handleShake, false);
+                shakeDetectionActive = true;
+                console.log('Shake detection activated');
+            } else {
+                console.log('DeviceMotionEvent not supported');
+            }
+        }
+        
+        function handleShake(event) {
+            const acceleration = event.accelerationIncludingGravity;
+            const currentTime = new Date().getTime();
+            
+            if ((currentTime - lastShakeTime) > SHAKE_COOLDOWN) {
+                const magnitude = Math.sqrt(
+                    acceleration.x * acceleration.x +
+                    acceleration.y * acceleration.y +
+                    acceleration.z * acceleration.z
+                );
+                
+                if (magnitude > SHAKE_THRESHOLD) {
+                    lastShakeTime = currentTime;
+                    triggerShakeSOS(magnitude);
+                }
+            }
+        }
+        
+        async function triggerShakeSOS(intensity) {
+            const alertBox = document.getElementById('alertConsole2');
+            const mapUrl = currentLatitude2 && currentLongitude2 ? 
+                `https://maps.google.com/?q=${currentLatitude2},${currentLongitude2}` : 
+                "Location Unavailable";
+            
+            let intensityLevel = 'HIGH';
+            if (intensity < 20) intensityLevel = 'MEDIUM';
+            else if (intensity < 25) intensityLevel = 'HIGH';
+            else intensityLevel = 'CRITICAL';
+            
+            alertBox.className = "alert alert-danger mb-0 small";
+            alertBox.innerHTML = `
+                <div class="shake-indicator mb-2">
+                    <i class="fa-solid fa-mobile-alt"></i>
+                    <span>SHAKE SOS ACTIVATED!</span>
+                </div>
+                <strong class="text-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i> Phone Shake Detected!</strong><br>
+                <strong>Intensity:</strong> ${intensityLevel} (${intensity.toFixed(1)})<br>
+                <strong>Location:</strong> ${mapUrl}<br>
+                <small class="text-muted">Emergency alert sent to warden and contacts!</small>
+            `;
+            
+            try {
+                await fetch('/api/shake-sos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        latitude: currentLatitude2,
+                        longitude: currentLongitude2,
+                        shake_intensity: intensityLevel
+                    })
+                });
+            } catch (err) {
+                console.error('Shake SOS save failed:', err);
+            }
+            
+            alert(`🚨 SHAKE SOS TRIGGERED!\n\nIntensity: ${intensityLevel}\nHelp is on the way!`);
+        }
+        
+        // ==================== COMPLAINT SYSTEM ====================
+        document.getElementById('complaintForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('complaintName').value.trim();
+            const room = document.getElementById('complaintRoom').value.trim();
+            const category = document.getElementById('complaintCategory').value;
+            const priority = document.getElementById('complaintPriority').value;
+            const desc = document.getElementById('complaintDesc').value.trim();
+            
+            if (!name || !room || !category || !desc) {
+                alert('Please fill all required fields');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/complaints', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        student_name: name,
+                        room_no: room,
+                        category: category,
+                        priority: priority,
+                        description: desc
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    const statusDiv = document.getElementById('complaintStatus');
+                    statusDiv.className = 'alert alert-success mt-3';
+                    statusDiv.innerHTML = '<i class="fa-solid fa-check-circle me-2"></i><strong>Complaint submitted successfully!</strong> Warden will review it soon.';
+                    statusDiv.classList.remove('d-none');
+                    
+                    document.getElementById('complaintForm').reset();
+                    loadComplaints();
+                    
+                    setTimeout(() => { statusDiv.classList.add('d-none'); }, 4000);
+                }
+            } catch (err) {
+                console.error('Error submitting complaint:', err);
+                alert('Error submitting complaint. Please try again.');
+            }
+        });
+        
+        async function loadComplaints() {
+            try {
+                const response = await fetch('/api/complaints');
+                const complaints = await response.json();
+                displayComplaints(complaints);
+            } catch (err) {
+                console.error('Error loading complaints:', err);
+                displayComplaints([]);
+            }
+        }
+        
+        function displayComplaints(complaints) {
+            const listDiv = document.getElementById('complaintsList');
+            
+            if (complaints.length === 0) {
+                listDiv.innerHTML = '<div class="text-center text-muted py-4"><i class="fa-solid fa-inbox fa-2x mb-2"></i><p>No complaints yet</p></div>';
+                document.getElementById('pendingCount').innerText = '0';
+                document.getElementById('resolvedCount').innerText = '0';
+                return;
+            }
+            
+            let pendingCount = 0;
+            let resolvedCount = 0;
+            
+            const html = complaints.map(complaint => {
+                if (complaint.status === 'pending' || complaint.status === 'in-progress') pendingCount++;
+                if (complaint.status === 'resolved') resolvedCount++;
+                
+                const statusColors = {
+                    'pending': 'warning',
+                    'in-progress': 'info',
+                    'resolved': 'success',
+                    'rejected': 'danger'
+                };
+                
+                const priorityClass = `priority-${complaint.priority}`;
+                const statusClass = complaint.status === 'resolved' ? 'complaint-resolved' : 'complaint-pending';
+                
+                return `
+                    <div class="card complaint-card ${statusClass} ${priorityClass} p-3">
+                        <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-1">
+                            <div>
+                                <span class="badge bg-${statusColors[complaint.status]} me-1">${complaint.status.toUpperCase()}</span>
+                                <strong>${complaint.category}</strong>
+                                <span class="badge bg-secondary ms-1">Room ${complaint.room_no}</span>
+                            </div>
+                            <small class="text-muted">${new Date(complaint.created_at).toLocaleString()}</small>
+                        </div>
+                        <p class="mb-2"><strong>${complaint.student_name}</strong>: ${complaint.description}</p>
+                        ${complaint.resolution_note ? `<div class="alert alert-success small mb-2"><strong>Resolution:</strong> ${complaint.resolution_note}</div>` : ''}
+                        ${complaint.status !== 'resolved' ? `
+                            <div class="mt-2">
+                                <button class="btn btn-sm btn-success me-1" onclick="resolveComplaint('${complaint._id}', 'resolved')">
+                                    <i class="fa-solid fa-check me-1"></i>Mark Resolved
+                                </button>
+                                <button class="btn btn-sm btn-info me-1" onclick="resolveComplaint('${complaint._id}', 'in-progress')">
+                                    <i class="fa-solid fa-spinner me-1"></i>In Progress
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteComplaint('${complaint._id}')">
+                                    <i class="fa-solid fa-trash me-1"></i>Delete
+                                </button>
+                            </div>
+                        ` : `
+                            <div class="mt-2">
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteComplaint('${complaint._id}')">
+                                    <i class="fa-solid fa-trash me-1"></i>Delete
+                                </button>
+                            </div>
+                        `}
+                    </div>
+                `;
+            }).join('');
+            
+            listDiv.innerHTML = html;
+            document.getElementById('pendingCount').innerText = pendingCount;
+            document.getElementById('resolvedCount').innerText = resolvedCount;
+        }
+        
+        async function resolveComplaint(complaintId, status) {
+            let resolutionNote = '';
+            if (status === 'resolved') {
+                resolutionNote = prompt('Enter resolution note (optional):') || '';
+            }
+            
+            try {
+                await fetch(`/api/complaints/${complaintId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: status, resolution_note: resolutionNote })
+                });
+                loadComplaints();
+            } catch (err) {
+                console.error('Error resolving complaint:', err);
+            }
+        }
+        
+        async function deleteComplaint(complaintId) {
+            if (confirm('Are you sure you want to delete this complaint?')) {
+                try {
+                    await fetch(`/api/complaints/${complaintId}`, {
+                        method: 'DELETE'
+                    });
+                    loadComplaints();
+                } catch (err) {
+                    console.error('Error deleting complaint:', err);
+                }
+            }
+        }
+        
+        // ==================== FACE RECOGNITION ====================
+        let faceModelsLoaded = false;
+        let registrationStream = null;
+        let entryStream = null;
+        
+        async function loadFaceModels() {
+            if (faceModelsLoaded) return;
+            
+            const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model';
+            
+            try {
+                await Promise.all([
+                    faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+                ]);
+                
+                faceModelsLoaded = true;
+                console.log('Face models loaded successfully');
+            } catch (err) {
+                console.error('Error loading face models:', err);
+                alert('Error loading face recognition models. Please check console and refresh.');
+            }
+        }
+        
+        // ===== CHANGE 3: Face Registration improved with retry =====
+        async function startFaceRegistration() {
+            await loadFaceModels();
+            
+            const video = document.getElementById('regVideo');
+            const statusDiv = document.getElementById('regStatus');
+            const name = document.getElementById('regName').value.trim();
+            const room = document.getElementById('regRoom').value.trim();
+            
+            if (!name || !room) {
+                alert('Please enter your name and room number');
+                return;
+            }
+            
+            try {
+                registrationStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 640, height: 480 } 
+                });
+                video.srcObject = registrationStream;
+                
+                statusDiv.className = 'alert alert-info mt-2 small';
+                statusDiv.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Looking for your face...';
+                statusDiv.classList.remove('d-none');
+                
+                await new Promise(resolve => {
+                    video.onloadedmetadata = () => resolve();
+                });
+                
+                const detectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.3 });
+                let detection = null;
+                for (let attempt = 0; attempt < 10 && !detection; attempt++) {
+                    detection = await faceapi.detectSingleFace(video, detectorOptions).withFaceLandmarks().withFaceDescriptor();
+                    if (!detection) {
+                        statusDiv.innerHTML = `<i class="fa-solid fa-spinner fa-spin me-2"></i>Looking for your face... (try ${attempt + 1}/10)`;
+                        await new Promise(r => setTimeout(r, 500));
+                    }
+                }
+                
+                if (detection) {
+                    await fetch('/api/face-register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            student_name: name,
+                            room_no: room,
+                            face_descriptor: Array.from(detection.descriptor)
+                        })
+                    });
+                    
+                    statusDiv.className = 'alert alert-success mt-2 small';
+                    statusDiv.innerHTML = '<i class="fa-solid fa-check-circle me-2"></i><strong>Face registered successfully!</strong>';
+                    
+                    if (registrationStream) {
+                        registrationStream.getTracks().forEach(track => track.stop());
+                    }
+                    video.srcObject = null;
+                } else {
+                    statusDiv.className = 'alert alert-warning mt-2 small';
+                    statusDiv.innerHTML = '<i class="fa-solid fa-exclamation-triangle me-2"></i>No face detected. Please position your face clearly in the center with good lighting.';
+                }
+            } catch (err) {
+                console.error('Registration error:', err);
+                statusDiv.className = 'alert alert-danger mt-2 small';
+                statusDiv.innerHTML = '<i class="fa-solid fa-times-circle me-2"></i>Error: ' + err.message + ' (Make sure camera permissions are granted)';
+            }
+        }
+        
+        // ===== CHANGE 4: Face Entry improved =====
+        async function startFaceEntry() {
+            await loadFaceModels();
+            
+            const video = document.getElementById('entryVideo');
+            const statusDiv = document.getElementById('entryStatus');
+            
+            try {
+                entryStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 640, height: 480 } 
+                });
+                video.srcObject = entryStream;
+                
+                statusDiv.className = 'alert alert-info mt-2 small';
+                statusDiv.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Scanning for registered faces...';
+                statusDiv.classList.remove('d-none');
+                
+                await new Promise(resolve => {
+                    video.onloadedmetadata = () => resolve();
+                });
+                
+                const detectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.3 });
+                let isProcessing = false;
+                
+                const detectFace = async () => {
+                    if (!entryStream || !video.srcObject) return;
+                    if (isProcessing) return;
+                    isProcessing = true;
+                    
+                    try {
+                        const detection = await faceapi.detectSingleFace(video, detectorOptions).withFaceLandmarks().withFaceDescriptor();
+                        
+                        if (detection) {
+                            const response = await fetch('/api/face-recognition', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    face_descriptor: Array.from(detection.descriptor)
+                                })
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (result.matched) {
+                                statusDiv.className = 'alert alert-success mt-2 small';
+                                statusDiv.innerHTML = `
+                                    <i class="fa-solid fa-check-circle me-2"></i>
+                                    <strong>Welcome, ${result.student.student_name}!</strong><br>
+                                    Entry marked for Room ${result.student.room_no}
+                                `;
+                                
+                                setTimeout(() => {
+                                    if (entryStream) {
+                                        entryStream.getTracks().forEach(track => track.stop());
+                                    }
+                                    video.srcObject = null;
+                                }, 3000);
+                                return;
+                            } else {
+                                statusDiv.className = 'alert alert-warning mt-2 small';
+                                statusDiv.innerHTML = '<i class="fa-solid fa-exclamation-triangle me-2"></i>Face not registered. Please register first.';
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Detection error:', err);
+                    } finally {
+                        isProcessing = false;
+                    }
+                    
+                    if (entryStream && video.srcObject) {
+                        setTimeout(detectFace, 1500);
+                    }
+                };
+                
+                detectFace();
+                
+            } catch (err) {
+                console.error('Entry error:', err);
+                statusDiv.className = 'alert alert-danger mt-2 small';
+                statusDiv.innerHTML = '<i class="fa-solid fa-times-circle me-2"></i>Error: ' + err.message + ' (Check camera permissions)';
+            }
+        }
+        
+        // ==================== VOICE SOS ====================
+        let voiceRecognitionActive = false;
+        
+        function initVoiceSOS() {
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                const recognition = new SpeechRecognition();
+                recognition.continuous = true;
+                recognition.interimResults = false;
+                recognition.lang = 'en-US';
+                
+                recognition.onstart = function() {
+                    voiceRecognitionActive = true;
+                    console.log('Voice recognition active');
+                };
+                
+                recognition.onend = function() {
+                    voiceRecognitionActive = false;
+                    console.log('Voice recognition ended');
+                    if (document.getElementById('page3').classList.contains('active')) {
+                        setTimeout(() => recognition.start(), 500);
+                    }
+                };
+                
+                recognition.onresult = function(event) {
+                    const lastResult = event.results[event.results.length - 1];
+                    const transcript = lastResult[0].transcript.toLowerCase().trim();
+                    
+                    console.log('Voice command:', transcript);
+                    
+                    if (transcript.includes('help me') || transcript.includes('mujhe bachao') || 
+                        transcript.includes('save me') || transcript.includes('emergency')) {
+                        triggerVoiceSOS(transcript);
+                    }
+                };
+                
+                recognition.onerror = function(event) {
+                    console.error('Voice recognition error:', event.error);
+                };
+                
+                if (document.getElementById('page3').classList.contains('active')) {
+                    recognition.start();
+                }
+                
+                const observer = new MutationObserver(function(mutations) {
+                    if (document.getElementById('page3').classList.contains('active')) {
+                        if (!voiceRecognitionActive) {
+                            setTimeout(() => recognition.start(), 500);
+                        }
+                    }
+                });
+                
+                observer.observe(document.body, { childList: true, subtree: true });
+            } else {
+                console.log('Speech recognition not supported');
+            }
+        }
+        
+        async function triggerVoiceSOS(command) {
+            const alertBox = document.getElementById('alertConsole2');
+            const mapUrl = currentLatitude2 && currentLongitude2 ? 
+                `https://maps.google.com/?q=${currentLatitude2},${currentLongitude2}` : 
+                "Location Unavailable";
+            
+            alertBox.className = "alert alert-danger mb-0 small";
+            alertBox.innerHTML = `
+                <div class="voice-indicator voice-active mb-2">
+                    <i class="fa-solid fa-microphone"></i>
+                    <span>VOICE SOS ACTIVATED!</span>
+                </div>
+                <strong class="text-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i> Voice Command Detected:</strong> "${command}"<br>
+                <strong>Location:</strong> ${mapUrl}<br>
+                <small class="text-muted">Alert sent to warden, police and emergency contacts!</small>
+            `;
+            
+            try {
+                await fetch('/api/voice-sos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        student_name: 'Voice SOS User',
+                        room_no: 'Unknown',
+                        voice_command: command,
+                        latitude: currentLatitude2,
+                        longitude: currentLongitude2
+                    })
+                });
+            } catch (err) {
+                console.error('Voice SOS save failed:', err);
+            }
+            
+            alert(`🚨 VOICE SOS TRIGGERED!\n\nCommand: "${command}"\nHelp is on the way!`);
+        }
+        
+        async function loadRooms() {
+            try {
+                const response = await fetch('/api/rooms');
+                const data = await response.json();
+                const { rooms, beds } = data;
+                
+                rooms.forEach(room => {
+                    const roomBeds = beds.filter(b => b.room_no === room.room_no);
+                    const roomId = `room-${room.room_no.replace(/\s+/g, '-')}`;
+                    const initialDateTime = new Date(room.created_at).toLocaleString();
+                    const isWardenMode = document.getElementById('toggleWardenMode').checked;
+                    const wardenClass = isWardenMode ? '' : 'd-none';
+                    
+                    let bedsHTML = '';
+                    const colSize = room.sharing_capacity > 2 ? 'col-6 col-md-3' : (room.sharing_capacity === 1 ? 'col-12' : 'col-6');
+                    
+                    roomBeds.forEach(bed => {
+                        const fullBedId = `${room.room_no}-${bed.bed_label}`;
+                        const statusClass = bed.status === 'occupied' ? 'occupied' : 'vacant';
+                        const iconClass = bed.status === 'occupied' ? 'text-danger' : 'text-success';
+                        const badgeClass = bed.status === 'occupied' ? 'bg-danger' : 'bg-success';
+                        const statusText = bed.status === 'occupied' ? 'Occupied' : 'Vacant';
+                        
+                        const roommateDetailsHTML = room.sharing_capacity === 1 ? '' : `
+                            <div class="roommate-info mt-2 border text-start">
+                                <div><i class="fa-solid fa-user text-secondary me-1"></i><strong>Name:</strong> <span class="display-roommate-name">${bed.roommate_name || 'Vacant'}</span></div>
+                                <div><i class="fa-solid fa-graduation-cap text-secondary me-1"></i><strong>Degree:</strong> <span class="display-roommate-degree">${bed.roommate_degree || '-'}</span></div>
+                            </div>`;
+                        const roommateInputsHTML = room.sharing_capacity === 1 ? '' : `
+                            <label class="form-label micro-text fw-bold text-muted mb-0" style="font-size: 0.7rem;">Roommate Info:</label>
+                            <input type="text" class="form-control form-control-sm mb-1 input-roommate-name" placeholder="Name" value="${bed.roommate_name || ''}" onchange="updateRoommateDetails('${fullBedId}')">
+                            <input type="text" class="form-control form-control-sm mb-1 input-roommate-degree" placeholder="Degree (e.g. B.Tech SE)" value="${bed.roommate_degree || ''}" onchange="updateRoommateDetails('${fullBedId}')">`;
+                        
+                        bedsHTML += `
+                            <div class="${colSize}">
+                                <div class="bed-box ${statusClass}" data-bed-id="${fullBedId}">
+                                    <i class="fa-solid fa-bed ${iconClass} fs-3 mb-1 bed-icon"></i>
+                                    <div class="fw-bold small">Bed ${bed.bed_label}</div>
+                                    <span class="badge ${badgeClass} bed-status-tag">${statusText}</span>
+                                    ${roommateDetailsHTML}
+                                    <div class="last-updated mt-1"><i class="fa-regular fa-clock me-1"></i>Updated: ${initialDateTime}</div>
+                                    <div class="warden-actions ${wardenClass} mt-2 text-start">
+                                        <hr class="my-1">
+                                        ${roommateInputsHTML}
+                                        <button class="btn btn-sm btn-outline-success w-100 toggle-btn mt-1" onclick="toggleBedStatus('${fullBedId}')">Toggle Status</button>
+                                    </div>
+                                </div>
+                            </div>`;
+                    });
+                    
+                    const vacantCount = roomBeds.filter(b => b.status === 'vacant').length;
+                    const roomDiv = document.createElement('div');
+                    roomDiv.className = 'col-md-6'; roomDiv.id = roomId;
+                    roomDiv.innerHTML = `
+                        <div class="border rounded p-3 bg-white">
+                            ${room.image_url ? `<img src="${room.image_url}" class="room-img-preview" style="display: block;" alt="Room Photo" />` : ''}
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold m-0"><i class="fa-solid fa-door-closed text-danger me-2"></i><span class="room-title-text">Room No. ${room.room_no} (${room.sharing_capacity}-Sharing) - ${room.location}</span></h6>
+                                <span class="badge bg-secondary status-badge">${vacantCount} Vacant</span>
+                            </div>
+                            <div class="warden-actions ${wardenClass} mb-3">
+                                <label class="form-label small fw-bold text-secondary mb-1">Update/Change Room Photo:</label>
+                                <input type="file" class="form-control form-control-sm" accept="image/*" onchange="handleImageUpload(this, '${roomId}')">
+                            </div>
+                            <div class="row g-2">${bedsHTML}</div>
+                        </div>`;
+                    document.getElementById('roomsContainer').appendChild(roomDiv);
+                });
+            } catch (err) { console.error('Error loading rooms:', err); }
+        }
+        
+        window.onload = function() { 
+            fetchLocation(); 
+            fetchLocation2();
+            initVoiceSOS();
+            initShakeDetection();
+            loadComplaints();
+            loadEntryLogs();
+            loadContacts();
+            loadRooms();
+        }; 
     </script>
 </body>
 </html>
