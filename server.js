@@ -1,40 +1,132 @@
 const express = require('express');
-const mysql = require('mysql2/promise');
+const mongoose = require('mongoose');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const path = require('path');
 
 const app = express();
 app.use(cors());
-app.use(bodyParser.json({ limit: '100mb' }));
-app.use(express.static('Public'));
-// 🔧 MySQL Connection - APNA PASSWORD YAHAN DALO
-const db = mysql.createPool({
-    host: 'localhost',
-    user: 'root',
-    password: 'pass@2006',  // ⚠️ Agar MySQL password hai toh yahan likho
-    database: 'pg_safety_db',
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
+app.use(bodyParser.json({ limit: '50mb' }));
+
+// ✅ FIX 1: Public folder serve karna (HTML file ke liye)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ✅ FIX 2: Root route - jab koi localhost:3000 khole
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Test Connection
-async function testConnection() {
-    try {
-        const connection = await db.getConnection();
-        console.log('✅ Database connected successfully!');
-        connection.release();
-    } catch (err) {
-        console.error('❌ Database connection failed:', err.message);
-    }
-}
-testConnection();
+// ==================== MONGOOSE MODELS ====================
+
+const roomSchema = new mongoose.Schema({
+    room_no: { type: String, required: true, unique: true },
+    location: String,
+    sharing_capacity: Number,
+    image_url: { type: String, default: '' },
+    created_at: { type: Date, default: Date.now }
+});
+const Room = mongoose.model('Room', roomSchema);
+
+const bedSchema = new mongoose.Schema({
+    room_no: { type: String, required: true },
+    bed_label: { type: String, required: true },
+    status: { type: String, default: 'vacant' },
+    roommate_name: { type: String, default: 'Vacant' },
+    roommate_degree: { type: String, default: '-' }
+});
+bedSchema.index({ room_no: 1, bed_label: 1 }, { unique: true });
+const Bed = mongoose.model('Bed', bedSchema);
+
+const entryLogSchema = new mongoose.Schema({
+    student_name: String,
+    room_no: String,
+    entry_type: String,
+    created_at: { type: Date, default: Date.now }
+});
+const EntryLog = mongoose.model('EntryLog', entryLogSchema);
+
+const lateArrivalSchema = new mongoose.Schema({
+    student_name: String,
+    expected_time: String,
+    reason: String,
+    created_at: { type: Date, default: Date.now }
+});
+const LateArrival = mongoose.model('LateArrival', lateArrivalSchema);
+
+const emergencyContactSchema = new mongoose.Schema({
+    contact_name: String,
+    phone_number: String,
+    created_at: { type: Date, default: Date.now }
+});
+const EmergencyContact = mongoose.model('EmergencyContact', emergencyContactSchema);
+
+const faceRegistrationSchema = new mongoose.Schema({
+    student_name: String,
+    room_no: String,
+    face_descriptor: [Number],
+    created_at: { type: Date, default: Date.now }
+});
+const FaceRegistration = mongoose.model('FaceRegistration', faceRegistrationSchema);
+
+const sosAlertSchema = new mongoose.Schema({
+    alert_type: String,
+    latitude: Number,
+    longitude: Number,
+    shake_intensity: String,
+    student_name: String,
+    room_no: String,
+    voice_command: String,
+    photo_name: String,
+    photo_data: String, // ✅ NEW: Photo ka base64 data save karne ke liye
+    created_at: { type: Date, default: Date.now }
+});
+const SosAlert = mongoose.model('SosAlert', sosAlertSchema);
+
+const expenseSchema = new mongoose.Schema({
+    title: String,
+    amount: Number,
+    payer_name: String,
+    split_members: [String],
+    created_at: { type: Date, default: Date.now }
+});
+const Expense = mongoose.model('Expense', expenseSchema);
+
+const personalBudgetSchema = new mongoose.Schema({
+    budget_amount: Number,
+    created_at: { type: Date, default: Date.now }
+});
+const PersonalBudget = mongoose.model('PersonalBudget', personalBudgetSchema);
+
+const personalExpenseSchema = new mongoose.Schema({
+    title: String,
+    amount: Number,
+    created_at: { type: Date, default: Date.now }
+});
+const PersonalExpense = mongoose.model('PersonalExpense', personalExpenseSchema);
+
+const complaintSchema = new mongoose.Schema({
+    student_name: String,
+    room_no: String,
+    category: String,
+    priority: String,
+    description: String,
+    status: { type: String, default: 'pending' },
+    resolution_note: { type: String, default: '' },
+    created_at: { type: Date, default: Date.now }
+});
+const Complaint = mongoose.model('Complaint', complaintSchema);
+
+// 🔧 MongoDB Connection (Render + Local dono ke liye)
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/pg_safety_db';
+mongoose.connect(MONGODB_URI)
+    .then(() => console.log('✅ Database connected successfully!'))
+    .catch(err => console.error('❌ Database connection failed:', err.message));
 
 // ==================== 1. BED TRACKER APIs ====================
 app.get('/api/rooms', async (req, res) => {
     try {
-        const [rooms] = await db.query('SELECT * FROM rooms ORDER BY created_at DESC');
-        const [beds] = await db.query('SELECT * FROM beds');
+        const rooms = await Room.find().sort({ created_at: -1 });
+        const beds = await Bed.find();
         res.json({ rooms, beds });
     } catch (err) {
         console.error('Error fetching rooms:', err);
@@ -45,20 +137,26 @@ app.get('/api/rooms', async (req, res) => {
 app.post('/api/rooms', async (req, res) => {
     try {
         const { room_no, location, sharing, image_url } = req.body;
-        await db.query(
-            'INSERT INTO rooms (room_no, location, sharing_capacity, image_url) VALUES (?, ?, ?, ?)',
-            [room_no, location, sharing, image_url]
-        );
+        console.log('📥 Adding room:', { room_no, location, sharing });
+        
+        const newRoom = new Room({
+            room_no,
+            location,
+            sharing_capacity: sharing,
+            image_url: image_url || ''
+        });
+        await newRoom.save();
 
         // Auto-create beds
         const labels = sharing > 2 ? ['A', 'B', 'C', 'D'].slice(0, sharing) : (sharing === 1 ? ['1'] : ['A', 'B']);
         for (const label of labels) {
-            await db.query('INSERT IGNORE INTO beds (room_no, bed_label) VALUES (?, ?)', [room_no, label]);
+            const newBed = new Bed({ room_no, bed_label: label });
+            await newBed.save().catch(() => {});
         }
         console.log(`✅ Room ${room_no} added successfully`);
         res.json({ success: true, message: 'Room added!' });
     } catch (err) {
-        console.error('Error adding room:', err);
+        console.error('❌ Error adding room:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
@@ -66,14 +164,19 @@ app.post('/api/rooms', async (req, res) => {
 app.post('/api/beds/update', async (req, res) => {
     try {
         const { room_no, bed_label, status, name, degree } = req.body;
-        await db.query(
-            `UPDATE beds SET status = ?, roommate_name = ?, roommate_degree = ? WHERE room_no = ? AND bed_label = ?`,
-            [status, name || 'Vacant', degree || '-', room_no, bed_label]
+        await Bed.findOneAndUpdate(
+            { room_no, bed_label },
+            { 
+                status, 
+                roommate_name: name || 'Vacant', 
+                roommate_degree: degree || '-' 
+            },
+            { new: true, upsert: true }
         );
         console.log(`✅ Bed ${room_no}-${bed_label} updated to ${status}`);
         res.json({ success: true });
     } catch (err) {
-        console.error('Error updating bed:', err);
+        console.error('Error updating bed:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
@@ -81,7 +184,7 @@ app.post('/api/beds/update', async (req, res) => {
 // ==================== 2. PG MANAGEMENT APIs ====================
 app.get('/api/entry-log', async (req, res) => {
     try {
-        const [logs] = await db.query('SELECT * FROM entry_logs ORDER BY created_at DESC LIMIT 100');
+        const logs = await EntryLog.find().sort({ created_at: -1 }).limit(100);
         res.json(logs);
     } catch (err) {
         console.error('Error fetching entry logs:', err);
@@ -92,10 +195,8 @@ app.get('/api/entry-log', async (req, res) => {
 app.post('/api/entry-log', async (req, res) => {
     try {
         const { student_name, room_no, entry_type } = req.body;
-        await db.query(
-            'INSERT INTO entry_logs (student_name, room_no, entry_type) VALUES (?, ?, ?)',
-            [student_name, room_no, entry_type]
-        );
+        const newLog = new EntryLog({ student_name, room_no, entry_type });
+        await newLog.save();
         console.log(`✅ Entry logged: ${student_name} ${entry_type}`);
         res.json({ success: true, message: 'Entry logged!' });
     } catch (err) {
@@ -106,7 +207,7 @@ app.post('/api/entry-log', async (req, res) => {
 
 app.get('/api/late-arrival', async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT * FROM late_arrivals ORDER BY created_at DESC');
+        const rows = await LateArrival.find().sort({ created_at: -1 });
         res.json(rows);
     } catch (err) {
         console.error('Error fetching late arrivals:', err);
@@ -117,10 +218,8 @@ app.get('/api/late-arrival', async (req, res) => {
 app.post('/api/late-arrival', async (req, res) => {
     try {
         const { student_name, expected_time, reason } = req.body;
-        await db.query(
-            'INSERT INTO late_arrivals (student_name, expected_time, reason) VALUES (?, ?, ?)',
-            [student_name, expected_time, reason]
-        );
+        const newLate = new LateArrival({ student_name, expected_time, reason });
+        await newLate.save();
         console.log(`✅ Late arrival: ${student_name}`);
         res.json({ success: true, message: 'Late arrival recorded!' });
     } catch (err) {
@@ -131,7 +230,7 @@ app.post('/api/late-arrival', async (req, res) => {
 
 app.get('/api/emergency-contact', async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT * FROM emergency_contacts ORDER BY created_at DESC');
+        const rows = await EmergencyContact.find().sort({ created_at: -1 });
         res.json(rows);
     } catch (err) {
         console.error('Error fetching contacts:', err);
@@ -142,10 +241,8 @@ app.get('/api/emergency-contact', async (req, res) => {
 app.post('/api/emergency-contact', async (req, res) => {
     try {
         const { contact_name, phone_number } = req.body;
-        await db.query(
-            'INSERT INTO emergency_contacts (contact_name, phone_number) VALUES (?, ?)',
-            [contact_name, phone_number]
-        );
+        const newContact = new EmergencyContact({ contact_name, phone_number });
+        await newContact.save();
         console.log(`✅ Contact added: ${contact_name}`);
         res.json({ success: true, message: 'Contact saved!' });
     } catch (err) {
@@ -156,7 +253,7 @@ app.post('/api/emergency-contact', async (req, res) => {
 
 app.delete('/api/emergency-contact/:id', async (req, res) => {
     try {
-        await db.query('DELETE FROM emergency_contacts WHERE id = ?', [req.params.id]);
+        await EmergencyContact.findByIdAndDelete(req.params.id);
         res.json({ success: true, message: 'Contact removed!' });
     } catch (err) {
         console.error('Error deleting contact:', err);
@@ -167,10 +264,12 @@ app.delete('/api/emergency-contact/:id', async (req, res) => {
 app.post('/api/face-register', async (req, res) => {
     try {
         const { student_name, room_no, face_descriptor } = req.body;
-        await db.query(
-            'INSERT INTO face_registrations (student_name, room_no, face_descriptor) VALUES (?, ?, ?)',
-            [student_name, room_no, JSON.stringify(face_descriptor)]
-        );
+        const newFace = new FaceRegistration({ 
+            student_name, 
+            room_no, 
+            face_descriptor 
+        });
+        await newFace.save();
         console.log(`✅ Face registered: ${student_name}`);
         res.json({ success: true, message: 'Face registered!' });
     } catch (err) {
@@ -182,13 +281,13 @@ app.post('/api/face-register', async (req, res) => {
 app.post('/api/face-recognition', async (req, res) => {
     try {
         const { face_descriptor } = req.body;
-        const [registrations] = await db.query('SELECT * FROM face_registrations');
+        const registrations = await FaceRegistration.find();
 
         let bestMatch = null;
         let minDistance = Infinity;
 
         for (const reg of registrations) {
-            const storedDesc = JSON.parse(reg.face_descriptor);
+            const storedDesc = reg.face_descriptor;
             const distance = Math.sqrt(
                 storedDesc.reduce((sum, val, i) => sum + Math.pow(val - face_descriptor[i], 2), 0)
             );
@@ -218,7 +317,7 @@ app.post('/api/face-recognition', async (req, res) => {
 // ==================== 3. EMERGENCY SOS APIs ====================
 app.get('/api/sos-alerts', async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT * FROM sos_alerts ORDER BY created_at DESC LIMIT 100');
+        const rows = await SosAlert.find().sort({ created_at: -1 }).limit(100);
         res.json(rows);
     } catch (err) {
         console.error('Error fetching SOS alerts:', err);
@@ -229,10 +328,13 @@ app.get('/api/sos-alerts', async (req, res) => {
 app.post('/api/shake-sos', async (req, res) => {
     try {
         const { latitude, longitude, shake_intensity } = req.body;
-        await db.query(
-            'INSERT INTO sos_alerts (alert_type, latitude, longitude, shake_intensity) VALUES (?, ?, ?, ?)',
-            ['shake', latitude, longitude, shake_intensity]
-        );
+        const newAlert = new SosAlert({
+            alert_type: 'shake',
+            latitude,
+            longitude,
+            shake_intensity
+        });
+        await newAlert.save();
         console.log(`🚨 SHAKE SOS triggered!`);
         res.json({ success: true, message: 'Shake SOS saved!' });
     } catch (err) {
@@ -244,11 +346,15 @@ app.post('/api/shake-sos', async (req, res) => {
 app.post('/api/voice-sos', async (req, res) => {
     try {
         const { student_name, room_no, voice_command, latitude, longitude } = req.body;
-        // ✅ FIXED: student_name & room_no were being dropped before — now saved too
-        await db.query(
-            'INSERT INTO sos_alerts (alert_type, student_name, room_no, voice_command, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?)',
-            ['voice', student_name, room_no, voice_command, latitude, longitude]
-        );
+        const newAlert = new SosAlert({
+            alert_type: 'voice',
+            student_name,
+            room_no,
+            voice_command,
+            latitude,
+            longitude
+        });
+        await newAlert.save();
         console.log(`🚨 VOICE SOS triggered: ${voice_command}`);
         res.json({ success: true, message: 'Voice SOS saved!' });
     } catch (err) {
@@ -259,11 +365,16 @@ app.post('/api/voice-sos', async (req, res) => {
 
 app.post('/api/manual-sos', async (req, res) => {
     try {
-        const { latitude, longitude, photo_name } = req.body;
-        await db.query(
-            'INSERT INTO sos_alerts (alert_type, latitude, longitude, photo_name) VALUES (?, ?, ?, ?)',
-            ['manual', latitude, longitude, photo_name]
-        );
+        // ✅ NEW: photo_data bhi receive karta hai
+        const { latitude, longitude, photo_name, photo_data } = req.body;
+        const newAlert = new SosAlert({
+            alert_type: 'manual',
+            latitude,
+            longitude,
+            photo_name,
+            photo_data // ✅ NEW: Photo MongoDB mein save hogi
+        });
+        await newAlert.save();
         console.log(`🚨 MANUAL SOS triggered!`);
         res.json({ success: true, message: 'Manual SOS saved!' });
     } catch (err) {
@@ -276,10 +387,13 @@ app.post('/api/manual-sos', async (req, res) => {
 app.post('/api/expenses', async (req, res) => {
     try {
         const { title, amount, payer_name, split_members } = req.body;
-        await db.query(
-            'INSERT INTO expenses (title, amount, payer_name, split_members) VALUES (?, ?, ?, ?)',
-            [title, amount, payer_name, JSON.stringify(split_members)]
-        );
+        const newExpense = new Expense({
+            title,
+            amount,
+            payer_name,
+            split_members
+        });
+        await newExpense.save();
         console.log(`💰 Expense added: ${title} - ₹${amount}`);
         res.json({ success: true, message: 'Expense saved!' });
     } catch (err) {
@@ -290,7 +404,7 @@ app.post('/api/expenses', async (req, res) => {
 
 app.get('/api/expenses', async (req, res) => {
     try {
-        const [expenses] = await db.query('SELECT * FROM expenses ORDER BY created_at DESC');
+        const expenses = await Expense.find().sort({ created_at: -1 });
         res.json(expenses);
     } catch (err) {
         console.error('Error fetching expenses:', err);
@@ -301,9 +415,10 @@ app.get('/api/expenses', async (req, res) => {
 app.post('/api/personal-budget', async (req, res) => {
     try {
         const { budget_amount } = req.body;
-        await db.query('DELETE FROM personal_budget'); // Clear old
-        await db.query('INSERT INTO personal_budget (budget_amount) VALUES (?)', [budget_amount]);
-        console.log(`💵 Budget set: ₹${budget_amount}`);
+        await PersonalBudget.deleteMany({});
+        const newBudget = new PersonalBudget({ budget_amount });
+        await newBudget.save();
+        console.log(`✅ Budget set: ₹${budget_amount}`);
         res.json({ success: true, message: 'Budget saved!' });
     } catch (err) {
         console.error('Error setting budget:', err);
@@ -314,10 +429,8 @@ app.post('/api/personal-budget', async (req, res) => {
 app.post('/api/personal-expense', async (req, res) => {
     try {
         const { title, amount } = req.body;
-        await db.query(
-            'INSERT INTO personal_expenses (title, amount) VALUES (?, ?)',
-            [title, amount]
-        );
+        const newExpense = new PersonalExpense({ title, amount });
+        await newExpense.save();
         console.log(`💸 Personal expense: ${title} - ₹${amount}`);
         res.json({ success: true, message: 'Personal expense saved!' });
     } catch (err) {
@@ -328,9 +441,9 @@ app.post('/api/personal-expense', async (req, res) => {
 
 app.get('/api/personal-expenses', async (req, res) => {
     try {
-        const [expenses] = await db.query('SELECT * FROM personal_expenses ORDER BY created_at DESC');
-        const [budget] = await db.query('SELECT * FROM personal_budget LIMIT 1');
-        res.json({ expenses, budget: budget[0] || null });
+        const expenses = await PersonalExpense.find().sort({ created_at: -1 });
+        const budget = await PersonalBudget.findOne().sort({ created_at: -1 });
+        res.json({ expenses, budget: budget || null });
     } catch (err) {
         console.error('Error fetching personal expenses:', err);
         res.status(500).json({ error: err.message });
@@ -340,7 +453,7 @@ app.get('/api/personal-expenses', async (req, res) => {
 // ==================== 5. COMPLAINTS APIs ====================
 app.get('/api/complaints', async (req, res) => {
     try {
-        const [complaints] = await db.query('SELECT * FROM complaints ORDER BY created_at DESC');
+        const complaints = await Complaint.find().sort({ created_at: -1 });
         res.json(complaints);
     } catch (err) {
         console.error('Error fetching complaints:', err);
@@ -351,10 +464,14 @@ app.get('/api/complaints', async (req, res) => {
 app.post('/api/complaints', async (req, res) => {
     try {
         const { student_name, room_no, category, priority, description } = req.body;
-        await db.query(
-            'INSERT INTO complaints (student_name, room_no, category, priority, description) VALUES (?, ?, ?, ?, ?)',
-            [student_name, room_no, category, priority, description]
-        );
+        const newComplaint = new Complaint({
+            student_name,
+            room_no,
+            category,
+            priority,
+            description
+        });
+        await newComplaint.save();
         console.log(`📝 Complaint filed: ${student_name} - ${category}`);
         res.json({ success: true, message: 'Complaint submitted!' });
     } catch (err) {
@@ -366,9 +483,10 @@ app.post('/api/complaints', async (req, res) => {
 app.put('/api/complaints/:id', async (req, res) => {
     try {
         const { status, resolution_note } = req.body;
-        await db.query(
-            'UPDATE complaints SET status = ?, resolution_note = ? WHERE id = ?',
-            [status, resolution_note, req.params.id]
+        await Complaint.findByIdAndUpdate(
+            req.params.id,
+            { status, resolution_note: resolution_note || '' },
+            { new: true }
         );
         console.log(`✅ Complaint ${req.params.id} updated to ${status}`);
         res.json({ success: true, message: 'Complaint updated!' });
@@ -380,7 +498,7 @@ app.put('/api/complaints/:id', async (req, res) => {
 
 app.delete('/api/complaints/:id', async (req, res) => {
     try {
-        await db.query('DELETE FROM complaints WHERE id = ?', [req.params.id]);
+        await Complaint.findByIdAndDelete(req.params.id);
         console.log(`🗑️ Complaint ${req.params.id} deleted`);
         res.json({ success: true, message: 'Complaint deleted!' });
     } catch (err) {
@@ -389,16 +507,11 @@ app.delete('/api/complaints/:id', async (req, res) => {
     }
 });
 
-// Start Server
-const PORT = 3000;
+// Start Server (Render + Local dono ke liye)
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log('===========================================');
-    console.log(`✅ SERVER RUNNING on http://localhost:${PORT}`);
-    console.log(`✅ Database: pg_safety_db`);
-    console.log('===========================================');
-});
-
-
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/index.html');
+    console.log('\n===========================================');
+    console.log(`✅ SERVER RUNNING on port ${PORT}`);
+    console.log(`✅ Database: pg_safety_db (MongoDB)`);
+    console.log('===========================================\n');
 });
