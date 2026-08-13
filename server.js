@@ -17,6 +17,9 @@ mongoose.connect(MONGO_URI, {
   .then(() => console.log('✅ MongoDB Connected Successfully'))
   .catch(err => console.log('⚠️ DB Connection Issue:', err.message));
 
+// Helper check for DB connection state (1 = Connected)
+const isDBConnected = () => mongoose.connection.readyState === 1;
+
 // ===== Models =====
 const ProductSchema = new mongoose.Schema({
   name: String, 
@@ -41,15 +44,16 @@ const OrderSchema = new mongoose.Schema({
   date: { type: Date, default: Date.now }
 });
 
-const Product = mongoose.model('Product', ProductSchema);
-const User = mongoose.model('User', UserSchema);
-const Order = mongoose.model('Order', OrderSchema);
+const Product = mongoose.models.Product || mongoose.model('Product', ProductSchema);
+const User = mongoose.models.User || mongoose.model('User', UserSchema);
+const Order = mongoose.models.Order || mongoose.model('Order', OrderSchema);
 
 // ===== Routes =====
 
 // Seed products
 app.get('/api/seed', async (req, res) => {
   try {
+    if (!isDBConnected()) return res.status(503).json({ error: 'Database not connected' });
     const count = await Product.countDocuments();
     if (count > 0) return res.json({ message: 'Products already exist' });
     
@@ -70,6 +74,7 @@ app.get('/api/seed', async (req, res) => {
 // Get all products
 app.get('/api/products', async (req, res) => {
   try {
+    if (!isDBConnected()) return res.json([]);
     const products = await Product.find();
     res.json(products);
   } catch (e) {
@@ -80,6 +85,7 @@ app.get('/api/products', async (req, res) => {
 // User Registration
 app.post('/api/register', async (req, res) => {
   try {
+    if (!isDBConnected()) return res.status(503).json({ error: 'DB not connected - demo mode' });
     const { name, email, password } = req.body;
     const exists = await User.findOne({ email });
     if (exists) return res.status(400).json({ error: 'Email already registered!' });
@@ -95,6 +101,7 @@ app.post('/api/register', async (req, res) => {
 // User Login
 app.post('/api/login', async (req, res) => {
   try {
+    if (!isDBConnected()) return res.status(503).json({ error: 'DB not connected - demo mode' });
     const { email, password } = req.body;
     const user = await User.findOne({ email, password });
     if (!user) return res.status(400).json({ error: 'Invalid email or password!' });
@@ -108,6 +115,7 @@ app.post('/api/login', async (req, res) => {
 // Create Order
 app.post('/api/orders', async (req, res) => {
   try {
+    if (!isDBConnected()) return res.status(503).json({ error: 'DB not connected - demo mode' });
     const order = new Order(req.body);
     await order.save();
     res.json({ success: true, message: 'Order saved to MongoDB!' });
@@ -119,6 +127,7 @@ app.post('/api/orders', async (req, res) => {
 // Get all orders
 app.get('/api/orders', async (req, res) => {
   try {
+    if (!isDBConnected()) return res.json([]);
     const orders = await Order.find().sort({ date: -1 });
     res.json(orders);
   } catch (e) {
