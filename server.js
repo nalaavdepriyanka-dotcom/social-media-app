@@ -15,7 +15,7 @@ mongoose.connect(MONGO_URI, {
   socketTimeoutMS: 45000
 })
   .then(() => console.log('✅ MongoDB Connected Successfully'))
-  .catch(err => console.log('⚠️ DB Connection Issue - Using Demo Mode:', err.message));
+  .catch(err => console.log('⚠️ DB Connection Issue:', err.message));
 
 // ===== Models =====
 const ProductSchema = new mongoose.Schema({
@@ -63,7 +63,7 @@ app.get('/api/seed', async (req, res) => {
     await Product.insertMany(products);
     res.json({ message: '✅ Products added to MongoDB!' });
   } catch (e) {
-    res.json({ message: 'Demo mode - DB not connected' });
+    res.status(500).json({ error: e.message });
   }
 });
 
@@ -73,7 +73,7 @@ app.get('/api/products', async (req, res) => {
     const products = await Product.find();
     res.json(products);
   } catch (e) {
-    res.json([]);
+    res.status(500).json({ error: e.message });
   }
 });
 
@@ -88,7 +88,7 @@ app.post('/api/register', async (req, res) => {
     await user.save();
     res.json({ success: true, message: 'Registration successful!' });
   } catch (e) {
-    res.status(500).json({ error: 'Registration failed - DB issue' });
+    res.status(500).json({ error: e.message });
   }
 });
 
@@ -101,7 +101,7 @@ app.post('/api/login', async (req, res) => {
     
     res.json({ success: true, user: { name: user.name, email: user.email } });
   } catch (e) {
-    res.status(500).json({ error: 'Login failed - DB issue' });
+    res.status(500).json({ error: e.message });
   }
 });
 
@@ -112,7 +112,7 @@ app.post('/api/orders', async (req, res) => {
     await order.save();
     res.json({ success: true, message: 'Order saved to MongoDB!' });
   } catch (e) {
-    res.json({ success: true, message: 'Order placed (demo mode)' });
+    res.status(500).json({ error: e.message });
   }
 });
 
@@ -122,7 +122,7 @@ app.get('/api/orders', async (req, res) => {
     const orders = await Order.find().sort({ date: -1 });
     res.json(orders);
   } catch (e) {
-    res.json([]);
+    res.status(500).json({ error: e.message });
   }
 });
 
