@@ -7,14 +7,26 @@
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.3",
     "body-parser": "^2.3.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "mongoose": "^9.9.1",
+    "mongoose": "^9.9.2",
     "mysql2": "^3.23.2"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nalaavdepriyanka-dotcom/CodeAlpha_EcommerceStore.git"
+  },
+  "keywords": [],
+  "bugs": {
+    "url": "https://github.com/nalaavdepriyanka-dotcom/CodeAlpha_EcommerceStore/issues"
+  },
+  "homepage": "https://github.com/nalaavdepriyanka-dotcom/CodeAlpha_EcommerceStore#readme"
 }
