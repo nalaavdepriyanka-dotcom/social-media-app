@@ -1,146 +1,314 @@
-// server.js
 try { require('dotenv').config(); } catch (e) {}
 const express = require('express');
 const mongoose = require('mongoose');
 const path = require('path');
-const bcrypt = require('bcrypt');
+const fs = require('fs');
+const bcrypt = require('bcryptjs');
+const multer = require('multer');
 
 const app = express();
-app.use(express.json());
+
+// Middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ===== Uploads folder (auto-create) =====
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+app.use('/uploads', express.static(uploadDir));
+
+// ===== Multer setup (photo upload) =====
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
+    const safe = file.originalname.replace(/[^a-zA-Z0-9.]/g, '_');
+    cb(null, Date.now() + '-' + safe);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // max 5MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Only image files are allowed!'));
+  }
+});
+
 // ===== MongoDB Connection =====
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/ecommerce';
-mongoose.connect(MONGO_URI, {
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/socialmedia';
+
+mongoose.connect(MONGO_URI, { 
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000
 })
-  .then(() => console.log('✅ MongoDB Connected Successfully'))
-  .catch(err => console.log('⚠️ DB Connection Issue:', err.message));
+  .then(() => console.log('✅ MongoDB Connected'))
+  .catch(err => {
+    console.error('⚠️ DB Connection Error:', err.message);
+    console.log('💡 Is MongoDB running? Check: mongod');
+  });
 
 // ===== Models =====
-const ProductSchema = new mongoose.Schema({
-  name: String,
-  price: Number,
-  image: String,
-  description: String
-});
-
 const UserSchema = new mongoose.Schema({
-  name: String,
-  email: { type: String, unique: true },
-  password: String
+  name: { type: String, required: true },
+  email: { type: String, unique: true, required: true },
+  password: { type: String, required: true },
+  bio: { type: String, default: 'Hey there! I am using ConnectApp.' },
+  followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  joined: { type: Date, default: Date.now }
 });
 
-const OrderSchema = new mongoose.Schema({
-  customerName: String,
-  address: String,
-  phone: String,
-  items: Array,
-  total: Number,
-  userEmail: String,
+const PostSchema = new mongoose.Schema({
+  author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  content: String,
+  image: String,
+  likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  comments: [{
+    author: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    text: String,
+    date: { type: Date, default: Date.now }
+  }],
   date: { type: Date, default: Date.now }
 });
 
-const Product = mongoose.models.Product || mongoose.model('Product', ProductSchema);
-const User = mongoose.models.User || mongoose.model('User', UserSchema);
-const Order = mongoose.models.Order || mongoose.model('Order', OrderSchema);
+const User = mongoose.model('User', UserSchema);
+const Post = mongoose.model('Post', PostSchema);
 
-// ===== Routes =====
-
-// Seed products
-app.get('/api/seed', async (req, res) => {
-  try {
-    const count = await Product.countDocuments();
-    if (count > 0) return res.json({ message: 'Products already exist' });
-
-    const products = [
-      { name: "Wireless Headphones", price: 2499, image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&auto=format&fit=crop&q=60", description: "Experience crystal-clear sound quality with active noise cancellation and long-lasting battery life." },
-      { name: "Smart Watch", price: 3999, image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=60", description: "Keep track of your health, notifications, and fitness goals with this sleek and modern smartwatch." },
-      { name: "Minimalist Backpack", price: 1499, image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=500&auto=format&fit=crop&q=60", description: "Durable, water-resistant, and spacious enough to carry all your daily essentials and laptop securely." },
-      { name: "Mechanical Keyboard", price: 2999, image: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=500&auto=format&fit=crop&q=60", description: "Enhance your typing and gaming experience with RGB backlighting and responsive mechanical switches." }
-    ];
-
-    await Product.insertMany(products);
-    res.json({ message: '✅ Products added to MongoDB!' });
-  } catch (e) {
-    console.error('Seed error:', e);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// Get all products
-app.get('/api/products', async (req, res) => {
-  try {
-    const products = await Product.find();
-    res.json(products);
-  } catch (e) {
-    console.error('Products fetch error:', e);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// User Registration
+// ===== Auth Routes =====
 app.post('/api/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
-    if (!name || !email || !password) return res.status(400).json({ error: 'Missing fields' });
-
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+    
     const exists = await User.findOne({ email });
-    if (exists) return res.status(400).json({ error: 'Email already registered!' });
-
+    if (exists) {
+      return res.status(400).json({ error: 'Email is already registered!' });
+    }
+    
     const hashed = await bcrypt.hash(password, 10);
     const user = new User({ name, email, password: hashed });
     await user.save();
-    res.json({ success: true, message: 'Registration successful!' });
+    
+    res.json({ success: true, message: 'Account created! Please login now.' });
   } catch (e) {
     console.error('Register error:', e);
-    // Duplicate key or other DB error
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: 'Server error: ' + e.message });
   }
 });
 
-// User Login
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Missing fields' });
-
+    
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ error: 'Invalid email or password!' });
-
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid email or password!' });
+    }
+    
     const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(400).json({ error: 'Invalid email or password!' });
-
-    res.json({ success: true, user: { name: user.name, email: user.email } });
+    if (!match) {
+      return res.status(400).json({ error: 'Invalid email or password!' });
+    }
+    
+    res.json({ 
+      success: true, 
+      user: { 
+        _id: user._id, 
+        name: user.name, 
+        email: user.email,
+        bio: user.bio
+      } 
+    });
   } catch (e) {
     console.error('Login error:', e);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: 'Server error: ' + e.message });
   }
 });
 
-// Create Order
-app.post('/api/orders', async (req, res) => {
+// ===== User Routes =====
+app.get('/api/users', async (req, res) => {
   try {
-    const order = new Order(req.body);
-    await order.save();
-    res.json({ success: true, message: 'Order saved to MongoDB!' });
+    const users = await User.find().select('name email bio followers following');
+    res.json(users);
   } catch (e) {
-    console.error('Order save error:', e);
-    res.status(500).json({ error: e.message });
+    console.error('Users fetch error:', e);
+    res.status(500).json({ error: 'Server error: ' + e.message });
   }
 });
 
-// Get all orders
-app.get('/api/orders', async (req, res) => {
+app.get('/api/users/:id', async (req, res) => {
   try {
-    const orders = await Order.find().sort({ date: -1 });
-    res.json(orders);
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const posts = await Post.find({ author: user._id })
+      .populate('author', 'name email')
+      .populate('comments.author', 'name')
+      .sort({ date: -1 });
+      
+    res.json({ user, posts });
   } catch (e) {
-    console.error('Orders fetch error:', e);
-    res.status(500).json({ error: e.message });
+    console.error('User profile error:', e);
+    res.status(500).json({ error: 'Server error: ' + e.message });
   }
 });
 
+app.post('/api/users/:id/follow', async (req, res) => {
+  try {
+    const myId = req.body.userId;
+    
+    if (myId === req.params.id) {
+      return res.status(400).json({ error: "You can't follow yourself!" });
+    }
+    
+    const target = await User.findById(req.params.id);
+    const me = await User.findById(myId);
+    
+    if (!target || !me) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const already = target.followers.some(f => f.toString() === myId);
+    
+    if (already) {
+      target.followers = target.followers.filter(f => f.toString() !== myId);
+      me.following = me.following.filter(f => f.toString() !== target._id.toString());
+    } else {
+      target.followers.push(me._id);
+      me.following.push(target._id);
+    }
+    
+    await target.save();
+    await me.save();
+    
+    res.json({ success: true, following: !already });
+  } catch (e) {
+    console.error('Follow error:', e);
+    res.status(500).json({ error: 'Server error: ' + e.message });
+  }
+});
+
+// ===== Post Routes =====
+app.get('/api/posts', async (req, res) => {
+  try {
+    const posts = await Post.find()
+      .populate('author', 'name email')
+      .populate('comments.author', 'name')
+      .sort({ date: -1 });
+    res.json(posts);
+  } catch (e) {
+    console.error('Posts fetch error:', e);
+    res.status(500).json({ error: 'Server error: ' + e.message });
+  }
+});
+
+// ✅ Photo upload support (FIXED)
+app.post('/api/posts', upload.single('image'), async (req, res) => {
+  try {
+    console.log('📝 Post create attempt:', { body: req.body, file: req.file });
+    
+    const body = req.body || {};
+    const author = body.author;
+    const content = body.content || '';
+    const imageUrl = body.imageUrl || '';
+    
+    if (!author) {
+      return res.status(400).json({ error: 'Please login first!' });
+    }
+    
+    if (!content.trim() && !req.file && !imageUrl.trim()) {
+      return res.status(400).json({ error: 'Post cannot be empty' });
+    }
+    
+    const image = req.file ? '/uploads/' + req.file.filename : imageUrl.trim();
+    
+    const post = new Post({ 
+      author, 
+      content: content.trim(), 
+      image 
+    });
+    
+    await post.save();
+    console.log('✅ Post saved:', post._id);
+    
+    res.json({ success: true, post });
+  } catch (e) {
+    console.error('❌ Post create error:', e);
+    res.status(500).json({ error: 'Post not saved: ' + e.message });
+  }
+});
+
+app.post('/api/posts/:id/like', async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    
+    const uid = req.body.userId;
+    const alreadyLiked = post.likes.some(l => l.toString() === uid);
+    
+    if (alreadyLiked) {
+      post.likes = post.likes.filter(l => l.toString() !== uid);
+    } else {
+      post.likes.push(uid);
+    }
+    
+    await post.save();
+    res.json({ success: true, likes: post.likes.length });
+  } catch (e) {
+    console.error('Like error:', e);
+    res.status(500).json({ error: 'Server error: ' + e.message });
+  }
+});
+
+app.post('/api/posts/:id/comment', async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    
+    post.comments.push({ 
+      author: req.body.userId, 
+      text: req.body.text 
+    });
+    
+    await post.save();
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Comment error:', e);
+    res.status(500).json({ error: 'Server error: ' + e.message });
+  }
+});
+
+// ===== Error Handler (IMPROVED) =====
+app.use((err, req, res, next) => {
+  console.error('❌ Error:', err.message);
+  
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'File must be smaller than 5MB!' });
+    }
+    return res.status(400).json({ error: 'Upload error: ' + err.message });
+  }
+  
+  if (err.message === 'Only image files are allowed!') {
+    return res.status(400).json({ error: 'Only photo files are allowed!' });
+  }
+  
+  res.status(500).json({ error: 'Server error: ' + err.message });
+});
+
+// ===== Server Start =====
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 Server running: http://localhost:${PORT}`);
+  console.log(`📁 Upload folder: ${uploadDir}`);
+});
